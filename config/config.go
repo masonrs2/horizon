@@ -1,28 +1,26 @@
-package config 
+package config
 
 import (
 	"os"
 	"strconv"
-
-	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	DBHost string
-	DBPort int
-	DBUser string
+	DBHost     string
+	DBPort     int
+	DBUser     string
 	DBPassword string
-	DBName string
+	DBName     string
 	ServerPort string
 }
 
-func load() *Config {
+func Load() *Config {
 	return &Config{
-		DBHost: getEnv("DB_HOST", "localhost"),
-		DBPort: GetEnvAsInt("DB_PORT", 5432),
-		DBUser: getEnv("DB_USER", "postgres"),
+		DBHost:     getEnv("DB_HOST", "localhost"),
+		DBPort:     getEnvAsInt("DB_PORT", 5432),
+		DBUser:     getEnv("DB_USER", "postgres"),
 		DBPassword: getEnv("DB_PASSWORD", ""),
-		DBName: getEnv("DB_NAME", "horizon"),
+		DBName:     getEnv("DB_NAME", "horizon"),
 		ServerPort: getEnv("SERVER_PORT", "8080"),
 	}
 }

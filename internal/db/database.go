@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"horizon-backend/config"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/masonrs2/horizon/horizon-backend/config"
 )
 
 func NewPool(cfg *config.Config) (*pgxpool.Pool, error) {
 	// Neon-specific connection format
 	connStr := fmt.Sprintf(
-		"postgres://%s:%s@%s/%s?sslmode=require",
+		"postgres://%s:%s@%s/%s?sslmode=disable",
 		cfg.DBUser,
 		cfg.DBPassword,
 		cfg.DBHost, // Contains Neon endpoint ID

@@ -1,17 +1,22 @@
 package main
 
 import (
-	"horizon/internal/handler"
+	"horizon-backend/internal/db"
+	"horizon-backend/internal/handler"
 
 	"github.com/labstack/echo/v4"
+	"horizon-backend/config"
 )
 
 func main() {
 	// Initialize Echo web framework
 	e := echo.New()
 
+	// Load configuration first
+	cfg := config.Load()
+
 	// Create database connection pool
-	pool, err := NewPool()
+	pool, err := db.NewPool(cfg)
 	if err != nil {
 		e.Logger.Fatal("Failed to create database pool: ", err)
 	}
