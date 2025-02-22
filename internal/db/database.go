@@ -11,12 +11,12 @@ import (
 )
 
 func NewPool(cfg *config.Config) (*pgxpool.Pool, error) {
-	// Neon-specific connection format
 	connStr := fmt.Sprintf(
-		"postgres://%s:%s@%s/%s?sslmode=disable",
+		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.DBUser,
 		cfg.DBPassword,
-		cfg.DBHost, // Contains Neon endpoint ID
+		cfg.DBHost,
+		cfg.DBPort,
 		cfg.DBName,
 	)
 
