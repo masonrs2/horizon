@@ -4,11 +4,18 @@ import (
 	"horizon-backend/internal/db"
 	"horizon-backend/internal/handler"
 
-	"github.com/labstack/echo/v4"
 	"horizon-backend/config"
+
+	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
 )
 
 func main() {
+	// Load environment variables first
+	if err := godotenv.Load(); err != nil {
+		panic("Error loading .env file")
+	}
+
 	// Initialize Echo web framework
 	e := echo.New()
 
