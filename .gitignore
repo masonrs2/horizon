@@ -1,0 +1,39 @@
+# Ignore environment files in all subdirectories
+**/.env
+**/.env.*
+
+# Specific project ignores (redundant but explicit)
+horizon-backend/.env
+horizon-frontend/.env
+
+# Common ignores
+# IDE
+.vscode/
+.idea/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Dependency directories
+node_modules/
+vendor/
+
+# Build files
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Debug files
+*.log
+*.tmp
+*.temp
+
+# Local development files
+*.local
+docker-compose.override.yml
+
+# Terraform files
+**/terraform.tfvars
+*.tfstate 
