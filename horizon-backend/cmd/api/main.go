@@ -1,8 +1,10 @@
 package main
 
 import (
+	"horizon-backend/internal/controller"
 	"horizon-backend/internal/db"
-	"horizon-backend/internal/handler"
+	"horizon-backend/internal/repository"
+	"horizon-backend/internal/service"
 
 	"horizon-backend/config"
 
@@ -28,11 +30,14 @@ func main() {
 		e.Logger.Fatal("Failed to create database pool: ", err)
 	}
 
-	// Initialize health check handler with DB pool
-	healthHandler := handler.NewHealthHandler(pool)
+	// Initialize layers
+	queries := db.New(pool)
+	healthRepo := repository.NewHealthRepository(queries)
+	healthService := service.NewHealthService(healthRepo)
+	healthController := controller.NewHealthController(healthService)
 
-	// Register health check endpoint
-	e.GET("/health", healthHandler.Check)
+	// Register routes with controller
+	e.GET("/health", healthController.Check)
 
 	// Start server on port 8080
 	e.Logger.Fatal(e.Start(":8080"))
