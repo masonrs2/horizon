@@ -20,8 +20,8 @@ resource "aws_iam_user_policy" "s3_acecss" {
                 "s3:DeleteObject"
             ]
             Resource = [
-                "${aws_s3_bucket.media["dev"].arn}/*",
-                "${aws_s3_bucket.media["prod"].arn}/*"
+                "${aws_s3_bucket.horizon_media["dev"].arn}/*",
+                "${aws_s3_bucket.horizon_media["prod"].arn}/*"
             ]
         }]
     })

@@ -8,7 +8,8 @@ type User struct {
 	ID            pgtype.UUID        `json:"id"`
 	Username      string             `json:"username"`
 	Email         string             `json:"email"`
-	PasswordHash  string             `json:"password_hash"`
+	Password      string             `json:"password"`
+	PasswordHash  string             `json:"-"`
 	DisplayName   pgtype.Text        `json:"display_name"`
 	AvatarUrl     pgtype.Text        `json:"avatar_url"`
 	Bio           pgtype.Text        `json:"bio"`

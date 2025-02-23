@@ -12,20 +12,54 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (username, email, password_hash)
-VALUES ($1, $2, $3)
-RETURNING id, username, email, password_hash, display_name, avatar_url, bio, is_private, created_at, updated_at, deleted_at, email_verified, last_login
+INSERT INTO users (
+    username, 
+    email, 
+    password_hash, 
+    display_name
+    -- avatar_url, bio, and is_private will use their default values
+)
+VALUES (
+    $1, $2, $3, $4
+)
+RETURNING id, username, email, password_hash, display_name, 
+    COALESCE(avatar_url, '') as avatar_url,
+    COALESCE(bio, '') as bio,
+    COALESCE(is_private, false) as is_private,
+    created_at, updated_at, deleted_at, email_verified, last_login
 `
 
 type CreateUserParams struct {
-	Username     string `json:"username"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
+	Username     string      `json:"username"`
+	Email        string      `json:"email"`
+	PasswordHash string      `json:"password_hash"`
+	DisplayName  pgtype.Text `json:"display_name"`
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Username, arg.Email, arg.PasswordHash)
-	var i User
+type CreateUserRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	Username      string             `json:"username"`
+	Email         string             `json:"email"`
+	PasswordHash  string             `json:"password_hash"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     string             `json:"avatar_url"`
+	Bio           string             `json:"bio"`
+	IsPrivate     bool               `json:"is_private"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	EmailVerified bool               `json:"email_verified"`
+	LastLogin     pgtype.Timestamptz `json:"last_login"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
+	row := q.db.QueryRow(ctx, createUser,
+		arg.Username,
+		arg.Email,
+		arg.PasswordHash,
+		arg.DisplayName,
+	)
+	var i CreateUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
@@ -51,6 +85,32 @@ WHERE id = $1 AND deleted_at IS NULL
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.Bio,
+		&i.IsPrivate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.EmailVerified,
+		&i.LastLogin,
+	)
+	return i, err
+}
+
+const getUserByUsername = `-- name: GetUserByUsername :one
+SELECT id, username, email, password_hash, display_name, avatar_url, bio, is_private, created_at, updated_at, deleted_at, email_verified, last_login FROM users
+WHERE username = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByUsername, username)
 	var i User
 	err := row.Scan(
 		&i.ID,

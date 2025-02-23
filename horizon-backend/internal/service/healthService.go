@@ -18,12 +18,9 @@ func NewHealthService(repo *repository.HealthRepository) *HealthService {
 }
 
 func (s *HealthService) Check(ctx context.Context) (*model.HealthCheck, error) {
-	dbTime, err := s.repo.CheckConnection(ctx)
+	healthCheck, err := s.repo.CheckConnection(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &model.HealthCheck{
-		Status: "ok",
-		DBTime: dbTime.DBTime,
-	}, nil
+	return healthCheck, nil
 }

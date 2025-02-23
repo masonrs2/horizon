@@ -36,8 +36,14 @@ func main() {
 	healthService := service.NewHealthService(healthRepo)
 	healthController := controller.NewHealthController(healthService)
 
+	userRepo := repository.NewUserRepository(queries)
+	userService := service.NewUserService(userRepo)
+	userController := controller.NewUserController(userService)
+
 	// Register routes with controller
 	e.GET("/health", healthController.Check)
+	e.POST("/user", userController.CreateUser)
+	e.GET("/user/:username", userController.GetUserByUsername)
 
 	// Start server on port 8080
 	e.Logger.Fatal(e.Start(":8080"))

@@ -1,7 +1,7 @@
 output "s3_bucket_arns" {
   value = {
-    dev  = aws_s3_bucket.media["dev"].arn
-    prod = aws_s3_bucket.media["prod"].arn
+    dev  = aws_s3_bucket.horizon_media["dev"].arn
+    prod = aws_s3_bucket.horizon_media["prod"].arn
   }
 }
 
