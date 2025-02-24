@@ -32,16 +32,23 @@ func main() {
 
 	// Initialize layers
 	queries := db.New(pool)
+
+	// Health initializations
 	healthRepo := repository.NewHealthRepository(queries)
 	healthService := service.NewHealthService(healthRepo)
 	healthController := controller.NewHealthController(healthService)
 
+	// User initializations
 	userRepo := repository.NewUserRepository(queries)
 	userService := service.NewUserService(userRepo)
 	userController := controller.NewUserController(userService)
 
 	// Register routes with controller
+
+	// Health
 	e.GET("/health", healthController.Check)
+
+	// User
 	e.POST("/user", userController.CreateUser)
 	e.GET("/user/:username", userController.GetUserByUsername)
 

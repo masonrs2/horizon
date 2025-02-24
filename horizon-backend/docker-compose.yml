@@ -11,7 +11,6 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - horizon-pgdata:/var/lib/postgresql/data
-      - ./db/migrations:/docker-entrypoint-initdb.d
     networks:
       - horizon-net 
     healthcheck: 
@@ -19,6 +18,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  migrator:
+    image: migrate/migrate
+    container_name: horizon-migrator
+    networks:
+      - horizon-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations
+    entrypoint: ["migrate"]
+    command: [
+      "-path", "/migrations",
+      "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable",
+      "up"
+    ]
+    environment:
+      MIGRATIONS_PATH: /migrations
 
 volumes: 
   horizon-pgdata:
