@@ -43,6 +43,11 @@ func main() {
 	userService := service.NewUserService(userRepo)
 	userController := controller.NewUserController(userService)
 
+	// Post initializations
+	postRepo := repository.NewPostRepository(queries, pool)
+	postService := service.NewPostService(postRepo)
+	postController := controller.NewPostController(postService)
+
 	// Register routes with controller
 
 	// Health
@@ -51,6 +56,11 @@ func main() {
 	// User
 	e.POST("/user", userController.CreateUser)
 	e.GET("/user/:username", userController.GetUserByUsername)
+
+	// Post
+	e.POST("/post", postController.CreatePost)
+	e.PUT("/post/:id/content", postController.UpdatePostContent)
+	e.POST("/post/:id/like", postController.LikePost)
 
 	// Start server on port 8080
 	e.Logger.Fatal(e.Start(":8080"))

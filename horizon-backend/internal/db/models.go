@@ -14,6 +14,13 @@ type Bookmark struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Follow struct {
+	FollowerID pgtype.UUID        `json:"follower_id"`
+	FollowedID pgtype.UUID        `json:"followed_id"`
+	IsAccepted bool               `json:"is_accepted"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type Medium struct {
 	ID         pgtype.UUID        `json:"id"`
 	PostID     pgtype.UUID        `json:"post_id"`
@@ -52,10 +59,23 @@ type Post struct {
 	RepostCount   int32              `json:"repost_count"`
 }
 
+type PostHashtag struct {
+	PostID    pgtype.UUID        `json:"post_id"`
+	Hashtag   string             `json:"hashtag"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type PostLike struct {
 	UserID    pgtype.UUID        `json:"user_id"`
 	PostID    pgtype.UUID        `json:"post_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Repost struct {
+	PostID           pgtype.UUID        `json:"post_id"`
+	ReposterID       pgtype.UUID        `json:"reposter_id"`
+	OriginalPosterID pgtype.UUID        `json:"original_poster_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {
