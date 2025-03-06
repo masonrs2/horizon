@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
-import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 
 interface MainLayoutProps {
@@ -12,6 +12,9 @@ interface MainLayoutProps {
     id: string;
     label: string;
   }[];
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+  rightContent?: ReactNode;
 }
 
 export function MainLayout({ 
@@ -19,41 +22,42 @@ export function MainLayout({
   title,
   showBackButton,
   showTabs,
-  tabs
+  tabs,
+  activeTab,
+  onTabChange,
+  rightContent
 }: MainLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar - hidden on mobile, visible from md breakpoint */}
-      <div className="hidden md:block md:w-64 lg:w-72 shrink-0">
-        <Sidebar />
-      </div>
+    <div className="min-h-screen bg-background text-foreground flex">
+      {/* Sidebar - hidden on mobile */}
+      <Sidebar />
       
       {/* Main content area */}
-      <div className="flex-1 flex flex-col border-x-0 md:border-x max-w-screen-md mx-auto">
+      <main className="flex-1 md:ml-[275px] flex flex-col min-h-screen border-x border-border/40 md:max-w-2xl relative bg-background">
         <Header 
           title={title} 
-          showBackButton={showBackButton}
+          showBackButton={showBackButton} 
           showTabs={showTabs}
           tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={onTabChange}
         />
         
-        <main className="flex-1 pb-20 md:pb-0">
+        <div className="flex-1 bg-background">
           {children}
-        </main>
-      </div>
-      
-      {/* Third column - only visible on large screens */}
-      <div className="hidden lg:block lg:w-80 xl:w-96">
-        <div className="sticky top-0 p-4">
-          <div className="rounded-xl bg-accent/5 p-4">
-            <h2 className="font-semibold text-lg mb-4">Who to follow</h2>
-            {/* This could be populated with suggested users */}
-            <p className="text-muted-foreground">Suggestions will appear here</p>
-          </div>
         </div>
-      </div>
+      </main>
       
-      {/* Mobile navigation - only visible on mobile */}
+      {/* Right sidebar - hidden on mobile */}
+      {rightContent && (
+        <aside className="hidden lg:block w-[350px] p-4 sticky top-0 h-screen overflow-y-auto bg-background">
+          <div className="space-y-4">
+            {rightContent}
+          </div>
+        </aside>
+      )}
+      
+      {/* Mobile navigation - visible only on mobile */}
       <MobileNav />
     </div>
   );

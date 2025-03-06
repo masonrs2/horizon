@@ -1,22 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  FaHome, 
-  FaSearch, 
-  FaBell, 
-  FaUser,
-  FaFeather
-} from 'react-icons/fa';
+import { Home, Search, Bell, Mail, PenSquare } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/store/authStore';
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { CreatePostForm } from '@/components/post/CreatePostForm';
 
 export function MobileNav() {
-  const { user } = useAuthStore();
   const location = useLocation();
   
   const isActive = (path: string) => {
@@ -25,51 +12,60 @@ export function MobileNav() {
   
   const navItems = [
     {
-      icon: <FaHome size={22} />,
-      path: '/'
+      icon: Home,
+      path: '/',
+      label: 'Home'
     },
     {
-      icon: <FaSearch size={22} />,
-      path: '/explore'
+      icon: Search,
+      path: '/explore',
+      label: 'Explore'
     },
     {
-      icon: <FaBell size={22} />,
-      path: '/notifications'
+      icon: Bell,
+      path: '/notifications',
+      label: 'Notifications'
     },
     {
-      icon: <FaUser size={22} />,
-      path: user ? `/profile/${user.username}` : '/profile'
-    }
+      icon: Mail,
+      path: '/messages',
+      label: 'Messages'
+    },
   ];
   
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background border-t md:hidden z-10">
-      <div className="flex justify-around items-center h-14">
+    <>
+      {/* Floating post button for mobile */}
+      <Button 
+        size="icon" 
+        className="md:hidden fixed bottom-20 right-4 w-14 h-14 rounded-full z-50 shadow-lg sunset-gradient btn-hover-effect border border-primary/20"
+      >
+        <PenSquare className="h-6 w-6" />
+      </Button>
+    
+      {/* Bottom navigation */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 h-16 bg-background/80 backdrop-blur-md border-t border-border z-40 flex items-center justify-around px-2">
         {navItems.map((item) => (
-          <Link 
-            key={item.path} 
+          <Link
+            key={item.path}
             to={item.path}
-            className={`flex items-center justify-center p-3 flex-1 ${
-              isActive(item.path) ? 'text-primary' : 'text-muted-foreground'
-            }`}
+            className="flex flex-col items-center justify-center w-full h-full"
           >
-            {item.icon}
+            <div className={cn(
+              "flex flex-col items-center justify-center rounded-full p-2 transition-all duration-200",
+              isActive(item.path) 
+                ? "text-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            )}>
+              <item.icon className={cn(
+                "h-6 w-6 mb-1",
+                isActive(item.path) && "stroke-[2.5px]"
+              )} />
+              <span className="text-xs">{item.label}</span>
+            </div>
           </Link>
         ))}
-        
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button className="rounded-full h-10 w-10 p-0 flex-1" size="icon">
-              <FaFeather size={18} />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="h-[80vh] rounded-t-xl">
-            <div className="py-4">
-              <CreatePostForm />
-            </div>
-          </SheetContent>
-        </Sheet>
       </div>
-    </div>
+    </>
   );
 } 

@@ -4,24 +4,104 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --primary: 202 100% 50%;
+    --background: 222 33% 12%;
+    --foreground: 210 40% 98%;
+    
+    --card: 220 30% 15%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 220 30% 15%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 15 90% 55%;
     --primary-foreground: 210 40% 98%;
-    /* other CSS variables */
+    
+    --secondary: 215 25% 20%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 215 25% 20%;
+    --muted-foreground: 215 20% 65%;
+    
+    --accent: 15 90% 55%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 220 13% 25%;
+    --input: 220 13% 25%;
+    --ring: 15 90% 55%;
+    
+    --radius: 0.5rem;
   }
   
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    /* dark mode variables */
+  .light {
+    --background: 0 0% 98%;
+    --foreground: 222.2 84% 4.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    --primary: 15 90% 55%;
+    --primary-foreground: 0 0% 98%;
+    
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    --muted: 214 32% 91%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 15 90% 55%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 15 90% 55%;
   }
   
   * {
-    @apply border-gray-200 dark:border-gray-800;
+    @apply border-border;
   }
   
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom gradient effects */
+.gradient-hover {
+  @apply relative overflow-hidden;
+}
+
+.gradient-hover::before {
+  @apply content-[''] absolute inset-0 bg-gradient-to-r from-orange-500/40 to-orange-600/40 opacity-0 transition-opacity duration-300;
+}
+
+.gradient-hover:hover::before {
+  @apply opacity-100;
+}
+
+/* Glassy card effect */
+.glassy-card {
+  @apply border border-white/10 bg-white/5 backdrop-blur-sm;
+}
+
+/* Button hover animations */
+.btn-hover-effect {
+  @apply transition-all duration-300;
+}
+
+.btn-hover-effect:hover {
+  @apply shadow-md shadow-orange-500/20 scale-105;
+}
+
+/* Sunset gradient backgrounds */
+.sunset-gradient {
+  @apply bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700;
 }

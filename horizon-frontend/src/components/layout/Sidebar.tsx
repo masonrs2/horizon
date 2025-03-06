@@ -1,130 +1,67 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  FaHome, 
-  FaSearch, 
-  FaBell, 
-  FaEnvelope, 
-  FaBookmark, 
-  FaUser, 
-  FaEllipsisH,
-  FaFeather
-} from 'react-icons/fa';
+  Home, 
+  Search, 
+  Bell, 
+  Mail, 
+  Bookmark, 
+  User, 
+  PenSquare
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useAuthStore } from '@/store/authStore';
+import { cn } from '@/lib/utils';
 
 export function Sidebar() {
-  const { user, logout } = useAuthStore();
   const location = useLocation();
-  
+
   const isActive = (path: string) => {
     return location.pathname === path;
   };
-  
-  const menuItems = [
-    {
-      icon: <FaHome size={20} />,
-      text: 'Home',
-      path: '/'
-    },
-    {
-      icon: <FaSearch size={20} />,
-      text: 'Explore',
-      path: '/explore'
-    },
-    {
-      icon: <FaBell size={20} />,
-      text: 'Notifications',
-      path: '/notifications'
-    },
-    {
-      icon: <FaEnvelope size={20} />,
-      text: 'Messages',
-      path: '/messages'
-    },
-    {
-      icon: <FaBookmark size={20} />,
-      text: 'Bookmarks',
-      path: '/bookmarks'
-    },
-    {
-      icon: <FaUser size={20} />,
-      text: 'Profile',
-      path: user ? `/profile/${user.username}` : '/profile'
-    }
+
+  const navItems = [
+    { icon: Home, label: 'Home', path: '/' },
+    { icon: Search, label: 'Explore', path: '/explore' },
+    { icon: Bell, label: 'Notifications', path: '/notifications' },
+    { icon: Mail, label: 'Messages', path: '/messages' },
+    { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks' },
+    { icon: User, label: 'Profile', path: '/profile' },
   ];
-  
+
   return (
-    <div className="h-screen flex flex-col justify-between p-4 sticky top-0">
-      <div>
-        {/* Logo */}
-        <Link to="/" className="flex items-center mb-6">
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white">
-            <span className="text-xl font-bold">H</span>
-          </div>
-        </Link>
-        
-        {/* Navigation */}
-        <nav className="space-y-2">
-          {menuItems.map((item) => (
-            <Link 
-              key={item.path} 
-              to={item.path}
-              className={`flex items-center gap-4 px-4 py-3 rounded-full text-lg hover:bg-accent/10 transition-colors ${
-                isActive(item.path) ? 'font-semibold' : ''
-              }`}
-            >
-              {item.icon}
-              <span className="hidden md:inline">{item.text}</span>
-            </Link>
-          ))}
-        </nav>
-        
-        {/* Post button */}
-        <Button className="w-full mt-4 rounded-full py-6 md:py-3" size="lg">
-          <FaFeather className="md:hidden" size={20} />
-          <span className="hidden md:inline">Post</span>
-        </Button>
+    <div className="fixed left-0 top-0 h-screen w-[275px] border-r border-border hidden md:flex flex-col p-4 bg-gradient-to-b from-background to-background/95">
+      <div className="mb-6 px-2">
+        <h1 className="text-2xl font-bold text-transparent bg-clip-text sunset-gradient">
+          Horizon
+        </h1>
       </div>
-      
-      {/* User menu */}
-      {user && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full flex items-center justify-between p-3 rounded-full hover:bg-accent/10">
-              <div className="flex items-center gap-2">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={user.avatar_url || ''} alt={user.username} />
-                  <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="hidden md:block text-left">
-                  <p className="font-medium">{user.display_name || user.username}</p>
-                  <p className="text-muted-foreground text-sm">@{user.username}</p>
-                </div>
-              </div>
-              <FaEllipsisH className="hidden md:block" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/settings">Settings</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={logout} className="text-destructive">
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+
+      <nav className="flex-1 space-y-1">
+        {navItems.map((item) => (
+          <Link 
+            key={item.path}
+            to={item.path}
+            className={cn(
+              "flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200",
+              isActive(item.path) 
+                ? "font-semibold text-primary bg-primary/10" 
+                : "text-foreground hover:bg-accent/5 btn-hover-effect"
+            )}
+          >
+            <item.icon className={cn(
+              "h-6 w-6",
+              isActive(item.path) && "text-primary"
+            )} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      <Button 
+        className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
+      >
+        <PenSquare className="h-5 w-5" />
+        <span>Post</span>
+      </Button>
     </div>
   );
 } 
