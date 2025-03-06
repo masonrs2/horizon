@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { User, Mail, Lock, AtSign } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -81,7 +82,7 @@ export function RegisterForm() {
   
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {error && (
           <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
             {error}
@@ -95,11 +96,15 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input 
-                  placeholder="Choose a username" 
-                  {...field} 
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <AtSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="sunsetlover" 
+                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
+                    {...field} 
+                    disabled={isLoading}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -113,11 +118,15 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Display Name</FormLabel>
               <FormControl>
-                <Input 
-                  placeholder="Your display name" 
-                  {...field} 
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Sarah Jensen" 
+                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
+                    {...field} 
+                    disabled={isLoading}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -131,12 +140,16 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input 
-                  type="email" 
-                  placeholder="Your email address" 
-                  {...field} 
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="email" 
+                    placeholder="sarah@example.com" 
+                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
+                    {...field} 
+                    disabled={isLoading}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -150,12 +163,16 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input 
-                  type="password" 
-                  placeholder="Create a password" 
-                  {...field} 
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="password" 
+                    placeholder="••••••••" 
+                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
+                    {...field} 
+                    disabled={isLoading}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -169,12 +186,16 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Confirm Password</FormLabel>
               <FormControl>
-                <Input 
-                  type="password" 
-                  placeholder="Confirm your password" 
-                  {...field} 
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="password" 
+                    placeholder="••••••••" 
+                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
+                    {...field} 
+                    disabled={isLoading}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -183,16 +204,16 @@ export function RegisterForm() {
         
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full h-12 bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white rounded-lg mt-4 transition-all duration-300 font-medium text-base" 
           disabled={isLoading}
         >
-          {isLoading ? 'Creating account...' : 'Create account'}
+          {isLoading ? 'Creating account...' : 'Sign up'}
         </Button>
         
-        <div className="text-center">
+        <div className="text-center mt-6">
           <p className="text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link to="/login" className="text-primary hover:underline">
+            <Link to="/login" className="text-primary font-medium hover:underline">
               Sign in
             </Link>
           </p>

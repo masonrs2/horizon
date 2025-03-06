@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Mail, Lock } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -55,7 +56,7 @@ export function LoginForm() {
   
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {authError && (
           <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
             {authError}
@@ -67,13 +68,17 @@ export function LoginForm() {
           name="username"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Username</FormLabel>
+              <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input 
-                  placeholder="Enter your username" 
-                  {...field} 
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="johndoe@gmail.com" 
+                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
+                    {...field} 
+                    disabled={isLoading}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -89,36 +94,51 @@ export function LoginForm() {
                 <FormLabel>Password</FormLabel>
                 <Link 
                   to="/forgot-password" 
-                  className="text-sm text-primary hover:underline"
+                  className="text-xs text-primary hover:underline"
                 >
-                  Forgot password?
+                  Forgot Password
                 </Link>
               </div>
               <FormControl>
-                <Input 
-                  type="password" 
-                  placeholder="Enter your password" 
-                  {...field} 
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="password" 
+                    placeholder="••••••••" 
+                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
+                    {...field} 
+                    disabled={isLoading}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
         
+        <div className="flex items-center space-x-2 my-4">
+          <input
+            type="checkbox"
+            id="remember"
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/80"
+          />
+          <label htmlFor="remember" className="text-sm text-muted-foreground">
+            Keep me logged in
+          </label>
+        </div>
+        
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full h-12 bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white rounded-lg transition-all duration-300 font-medium text-base" 
           disabled={isLoading}
         >
           {isLoading ? 'Signing in...' : 'Sign in'}
         </Button>
         
-        <div className="text-center">
+        <div className="text-center mt-6">
           <p className="text-sm text-muted-foreground">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-primary hover:underline">
+            <Link to="/signup" className="text-primary font-medium hover:underline">
               Sign up
             </Link>
           </p>
