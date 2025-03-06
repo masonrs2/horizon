@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -51,9 +52,10 @@ export function Header({
           <h1 className="font-semibold text-lg">{title}</h1>
         )}
         
-        {rightContent && (
-          <div className="ml-auto">{rightContent}</div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
+          {rightContent && rightContent}
+        </div>
       </div>
       
       {showTabs && tabs.length > 0 && (

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/authStore';
+import { useThemeStore, applyTheme } from '@/store/themeStore';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { HomePage } from '@/pages/HomePage';
@@ -25,10 +26,16 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   const { checkAuth } = useAuthStore();
+  const { theme } = useThemeStore();
   
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+  
+  // Apply theme from the store when app loads
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
   
   return (
     <Router>
