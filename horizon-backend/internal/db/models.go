@@ -44,6 +44,19 @@ type Message struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type NeonAuthUsersSync struct {
+	ID          pgtype.UUID        `json:"id"`
+	ExternalID  string             `json:"external_id"`
+	Provider    string             `json:"provider"`
+	Email       string             `json:"email"`
+	Username    pgtype.Text        `json:"username"`
+	DisplayName pgtype.Text        `json:"display_name"`
+	AvatarUrl   pgtype.Text        `json:"avatar_url"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	LastLogin   pgtype.Timestamptz `json:"last_login"`
+}
+
 type Post struct {
 	ID            pgtype.UUID        `json:"id"`
 	UserID        pgtype.UUID        `json:"user_id"`

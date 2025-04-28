@@ -2,25 +2,22 @@ package service
 
 import (
 	"context"
-
-	"horizon-backend/internal/model"
-	"horizon-backend/internal/repository"
+	"horizon-backend/internal/db"
 )
 
+// HealthService handles health checking logic
 type HealthService struct {
-	repo *repository.HealthRepository
+	queries *db.Queries
 }
 
-func NewHealthService(repo *repository.HealthRepository) *HealthService {
+// NewHealthService creates a new health service
+func NewHealthService(queries *db.Queries) *HealthService {
 	return &HealthService{
-		repo: repo,
+		queries: queries,
 	}
 }
 
-func (s *HealthService) Check(ctx context.Context) (*model.HealthCheck, error) {
-	healthCheck, err := s.repo.CheckConnection(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return healthCheck, nil
+// Check checks the health of the application
+func (s *HealthService) Check(ctx context.Context) (interface{}, error) {
+	return s.queries.CheckDBConnection(ctx)
 }

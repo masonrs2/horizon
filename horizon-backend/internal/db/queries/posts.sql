@@ -10,6 +10,12 @@ INSERT INTO posts (
 )
 RETURNING *;
 
+-- name: GetAllPosts :many
+SELECT * FROM posts 
+WHERE deleted_at IS NULL 
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
 -- name: GetPostByID :one
 SELECT * FROM posts 
 WHERE id = $1 AND deleted_at IS NULL;

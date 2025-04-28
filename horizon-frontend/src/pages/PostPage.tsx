@@ -9,7 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { Post as PostType } from '@/types';
 import { MessageCircle } from 'lucide-react';
 
-interface PostPagePost {
+interface PostCardPost {
   id: string;
   content: string;
   created_at: string;
@@ -30,7 +30,7 @@ export function PostPage() {
   const { postId } = useParams<{ postId: string }>();
   const { currentPost: post, isLoading, error, fetchPostById } = usePostStore();
   const { isAuthenticated } = useAuthStore();
-  const [replies, setReplies] = useState<PostPagePost[]>([]);
+  const [replies, setReplies] = useState<PostCardPost[]>([]);
 
   useEffect(() => {
     if (postId) {
@@ -107,15 +107,16 @@ export function PostPage() {
       );
     }
 
-    const postCardPost: PostPagePost = {
+    // Transform the API post data to match PostCard's expected format
+    const postCardPost: PostCardPost = {
       id: post.id,
       content: post.content,
       created_at: post.created_at,
       likes_count: post.like_count || 0,
-      replies_count: replies.length,
+      replies_count: replies.length, // TODO: Add reply count to API
       reposts_count: post.repost_count || 0,
-      liked_by_user: false,
-      reposted_by_user: false,
+      liked_by_user: false, // TODO: Add liked_by_user to API
+      reposted_by_user: false, // TODO: Add reposted_by_user to API
       user: post.user ? {
         id: post.user.id,
         username: post.user.username,

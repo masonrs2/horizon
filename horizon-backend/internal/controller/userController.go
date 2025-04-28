@@ -38,7 +38,7 @@ func (c *UserController) CreateUser(ctx echo.Context) error {
 		DisplayName: pgtype.Text{String: request.DisplayName, Valid: request.DisplayName != ""},
 	}
 
-	createdUser, err := c.service.CreateUser(ctx.Request().Context(), user)
+	createdUser, err := c.service.RegisterUser(ctx.Request().Context(), user)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -46,7 +46,7 @@ func (c *UserController) CreateUser(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, createdUser)
 }
 
-func (c* UserController) GetUserByUsername(ctx echo.Context) error {
+func (c *UserController) GetUserByUsername(ctx echo.Context) error {
 	username := ctx.Param("username")
 
 	user, err := c.service.GetUserByUsername(ctx.Request().Context(), username)

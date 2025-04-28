@@ -6,8 +6,9 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Post as ApiPost } from '@/types';
 
-interface Post {
+interface PostCardPost {
   id: string;
   content: string;
   created_at: string;
@@ -25,12 +26,35 @@ interface Post {
 }
 
 interface PostCardProps {
-  post: Post;
+  post: PostCardPost | ApiPost;
   isReply?: boolean;
   hideActions?: boolean;
 }
 
-export function PostCard({ post, isReply = false, hideActions = false }: PostCardProps) {
+export function PostCard({ post: rawPost, isReply = false, hideActions = false }: PostCardProps) {
+  // Transform API post to PostCardPost if needed
+  const post: PostCardPost = 'like_count' in rawPost ? {
+    id: rawPost.id,
+    content: rawPost.content,
+    created_at: rawPost.created_at,
+    likes_count: rawPost.like_count || 0,
+    replies_count: 0, // TODO: Add reply count to API
+    reposts_count: rawPost.repost_count || 0,
+    liked_by_user: false, // TODO: Add liked_by_user to API
+    reposted_by_user: false, // TODO: Add reposted_by_user to API
+    user: rawPost.user ? {
+      id: rawPost.user.id,
+      username: rawPost.user.username,
+      display_name: rawPost.user.display_name || rawPost.user.username,
+      avatar_url: rawPost.user.avatar_url || ''
+    } : {
+      id: 'unknown',
+      username: 'unknown',
+      display_name: 'Unknown User',
+      avatar_url: ''
+    }
+  } : rawPost as PostCardPost;
+
   const [liked, setLiked] = useState(post.liked_by_user);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [reposted, setReposted] = useState(post.reposted_by_user);

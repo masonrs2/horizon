@@ -89,6 +89,51 @@ func (q *Queries) DeletePost(ctx context.Context, arg DeletePostParams) error {
 	return err
 }
 
+const getAllPosts = `-- name: GetAllPosts :many
+SELECT id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count FROM posts 
+WHERE deleted_at IS NULL 
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type GetAllPostsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) GetAllPosts(ctx context.Context, arg GetAllPostsParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, getAllPosts, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.IsPrivate,
+			&i.ReplyToPostID,
+			&i.AllowReplies,
+			&i.MediaUrls,
+			&i.LikeCount,
+			&i.RepostCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPostByID = `-- name: GetPostByID :one
 SELECT id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count FROM posts 
 WHERE id = $1 AND deleted_at IS NULL
