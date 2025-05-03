@@ -8,17 +8,20 @@ import (
 	"horizon-backend/internal/model"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostService handles post-related business logic
 type PostService struct {
 	queries *db.Queries
+	db      *pgxpool.Pool
 }
 
 // NewPostService creates a new post service
-func NewPostService(queries *db.Queries) *PostService {
+func NewPostService(queries *db.Queries, pool *pgxpool.Pool) *PostService {
 	return &PostService{
 		queries: queries,
+		db:      pool,
 	}
 }
 
@@ -77,16 +80,89 @@ func (s *PostService) UpdatePostContent(ctx context.Context, postId, userId pgty
 	return dbPostToModelPost(updatedDbPost), nil
 }
 
+// HasLiked checks if a user has liked a post
+func (s *PostService) HasLiked(ctx context.Context, postId, userId pgtype.UUID) (bool, error) {
+	if !userId.Valid {
+		return false, nil
+	}
+
+	// Start a transaction since we want to ensure consistency
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// Check if the post exists first
+	_, err = qtx.GetPostByID(ctx, postId)
+	if err != nil {
+		return false, fmt.Errorf("failed to find post: %w", err)
+	}
+
+	// Check if the user has liked the post
+	hasLiked, err := qtx.HasUserLikedPost(ctx, db.HasUserLikedPostParams{
+		PostID: postId,
+		UserID: userId,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to check like status: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return hasLiked, nil
+}
+
 // LikePost likes a post
 func (s *PostService) LikePost(ctx context.Context, postId, userId pgtype.UUID) error {
-	// Create a like on the post
-	_, err := s.queries.LikePost(ctx, db.LikePostParams{
+	// Start a transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// Check if the post exists first
+	_, err = qtx.GetPostByID(ctx, postId)
+	if err != nil {
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+
+	// Check if the user has already liked this post
+	hasLiked, err := s.HasLiked(ctx, postId, userId)
+	if err != nil {
+		return fmt.Errorf("failed to check like status: %w", err)
+	}
+
+	if hasLiked {
+		return fmt.Errorf("user has already liked this post")
+	}
+
+	// First record the like
+	_, err = qtx.LikePost(ctx, db.LikePostParams{
 		UserID: userId,
 		PostID: postId,
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to like post: %w", err)
+	}
+
+	// Then increment the counter
+	_, err = qtx.IncrementLikeCount(ctx, postId)
+	if err != nil {
+		return fmt.Errorf("failed to increment like count: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -94,14 +170,33 @@ func (s *PostService) LikePost(ctx context.Context, postId, userId pgtype.UUID) 
 
 // UnlikePost unlikes a post
 func (s *PostService) UnlikePost(ctx context.Context, postId, userId pgtype.UUID) error {
+	// Start a transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
 	// Delete the like
-	err := s.queries.UnlikePost(ctx, db.UnlikePostParams{
+	err = qtx.UnlikePost(ctx, db.UnlikePostParams{
 		UserID: userId,
 		PostID: postId,
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to unlike post: %w", err)
+	}
+
+	// Decrement the counter
+	_, err = qtx.DecrementLikeCount(ctx, postId)
+	if err != nil {
+		return fmt.Errorf("failed to decrement like count: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -109,31 +204,87 @@ func (s *PostService) UnlikePost(ctx context.Context, postId, userId pgtype.UUID
 
 // GetPostById gets a post by ID
 func (s *PostService) GetPostById(ctx context.Context, postId pgtype.UUID) (*model.Post, error) {
-	dbPost, err := s.queries.GetPostByID(ctx, postId)
+	// Start a transaction since we want to ensure consistency
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// Get the post
+	dbPost, err := qtx.GetPostByID(ctx, postId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get post: %w", err)
 	}
 
-	return dbPostToModelPost(dbPost), nil
+	// Convert to model post
+	post := dbPostToModelPost(dbPost)
+
+	// Get the user ID from context
+	userID, ok := ctx.Value("user_id").(pgtype.UUID)
+	if ok && userID.Valid {
+		// Check if the user has liked the post
+		hasLiked, err := s.HasLiked(ctx, postId, userID)
+		if err == nil {
+			post.HasLiked = hasLiked
+		}
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return post, nil
 }
 
 // GetPosts retrieves a paginated list of posts
 func (s *PostService) GetPosts(ctx context.Context, limit, offset int32) ([]*model.Post, error) {
+	// Start a transaction since we want to ensure consistency
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
 	// Call database to get a list of posts with pagination
 	params := db.GetAllPostsParams{
 		Limit:  limit,
 		Offset: offset,
 	}
 
-	dbPosts, err := s.queries.GetAllPosts(ctx, params)
+	dbPosts, err := qtx.GetAllPosts(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get posts: %w", err)
 	}
 
 	// Convert to model posts
 	posts := make([]*model.Post, 0, len(dbPosts))
+
+	// Get the user ID from context
+	userID, ok := ctx.Value("user_id").(pgtype.UUID)
+
 	for _, dbPost := range dbPosts {
-		posts = append(posts, dbPostToModelPost(dbPost))
+		post := dbPostToModelPost(dbPost)
+
+		// If user is authenticated, check if they've liked each post
+		if ok && userID.Valid {
+			hasLiked, err := s.HasLiked(ctx, dbPost.ID, userID)
+			if err == nil {
+				post.HasLiked = hasLiked
+			}
+		}
+
+		posts = append(posts, post)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return posts, nil
@@ -141,6 +292,15 @@ func (s *PostService) GetPosts(ctx context.Context, limit, offset int32) ([]*mod
 
 // GetUserPosts retrieves posts by a specific user
 func (s *PostService) GetUserPosts(ctx context.Context, userId pgtype.UUID, limit, offset int32) ([]*model.Post, error) {
+	// Start a transaction since we want to ensure consistency
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
 	// Call database to get posts for a specific user
 	params := db.GetPostsByUserIDParams{
 		UserID: userId,
@@ -148,15 +308,85 @@ func (s *PostService) GetUserPosts(ctx context.Context, userId pgtype.UUID, limi
 		Offset: offset,
 	}
 
-	dbPosts, err := s.queries.GetPostsByUserID(ctx, params)
+	dbPosts, err := qtx.GetPostsByUserID(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user posts: %w", err)
 	}
 
 	// Convert to model posts
 	posts := make([]*model.Post, 0, len(dbPosts))
+
+	// Get the user ID from context
+	currentUserID, ok := ctx.Value("user_id").(pgtype.UUID)
+
 	for _, dbPost := range dbPosts {
-		posts = append(posts, dbPostToModelPost(dbPost))
+		post := dbPostToModelPost(dbPost)
+
+		// If user is authenticated, check if they've liked each post
+		if ok && currentUserID.Valid {
+			hasLiked, err := s.HasLiked(ctx, dbPost.ID, currentUserID)
+			if err == nil {
+				post.HasLiked = hasLiked
+			}
+		}
+
+		posts = append(posts, post)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return posts, nil
+}
+
+// GetPostReplies retrieves replies for a specific post
+func (s *PostService) GetPostReplies(ctx context.Context, postId pgtype.UUID, limit, offset int32) ([]*model.Post, error) {
+	// Start a transaction since we want to ensure consistency
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// Call database to get replies for the post
+	params := db.GetPostRepliesParams{
+		ReplyToPostID: postId,
+		Limit:         limit,
+		Offset:        offset,
+	}
+
+	dbPosts, err := qtx.GetPostReplies(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get post replies: %w", err)
+	}
+
+	// Convert to model posts
+	posts := make([]*model.Post, 0, len(dbPosts))
+
+	// Get the user ID from context
+	userID, ok := ctx.Value("user_id").(pgtype.UUID)
+
+	for _, dbPost := range dbPosts {
+		post := dbPostToModelPost(dbPost)
+
+		// If user is authenticated, check if they've liked each post
+		if ok && userID.Valid {
+			hasLiked, err := s.HasLiked(ctx, dbPost.ID, userID)
+			if err == nil {
+				post.HasLiked = hasLiked
+			}
+		}
+
+		posts = append(posts, post)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return posts, nil
@@ -177,5 +407,6 @@ func dbPostToModelPost(dbPost db.Post) *model.Post {
 		MediaUrls:     dbPost.MediaUrls,
 		LikeCount:     dbPost.LikeCount,
 		RepostCount:   dbPost.RepostCount,
+		HasLiked:      false, // Default to false, will be updated if user is authenticated
 	}
 }

@@ -29,6 +29,7 @@ export function LoginForm() {
   const navigate = useNavigate();
   const { login, error: authError } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
   
   // Initialize form
   const form = useForm<FormData>({
@@ -41,13 +42,21 @@ export function LoginForm() {
   
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
+    setErrors([]);
     
     try {
       await login(data);
       navigate('/');
       toast.success('Welcome back!');
-    } catch (error) {
-      // Error is handled by the auth store
+    } catch (error: any) {
+      // Handle the new error format
+      if (error.response?.data?.errors) {
+        setErrors(error.response.data.errors);
+      } else if (error.response?.data?.message) {
+        setErrors([error.response.data.message]);
+      } else {
+        setErrors(['An unexpected error occurred']);
+      }
       console.error('Login failed:', error);
     } finally {
       setIsLoading(false);
@@ -57,9 +66,13 @@ export function LoginForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {authError && (
+        {errors.length > 0 && (
           <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-            {authError}
+            <ul className="list-disc list-inside">
+              {errors.map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+            </ul>
           </div>
         )}
         

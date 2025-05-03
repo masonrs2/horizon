@@ -6,14 +6,16 @@ interface PostState {
   posts: Post[];
   userPosts: Post[];
   currentPost: Post | null;
+  replies: Post[];
   isLoading: boolean;
   error: string | null;
   
   fetchFeed: () => Promise<void>;
   fetchUserPosts: (username: string) => Promise<void>;
   fetchPostById: (postId: string) => Promise<void>;
+  fetchReplies: (postId: string) => Promise<void>;
   createPost: (postData: CreatePostRequest) => Promise<Post | null>;
-  likePost: (postId: string, userId: string) => Promise<void>;
+  likePost: (postId: string, isLiked: boolean) => Promise<void>;
   repostPost: (postId: string, userId: string) => Promise<void>;
 }
 
@@ -21,6 +23,7 @@ export const usePostStore = create<PostState>((set, get) => ({
   posts: [],
   userPosts: [],
   currentPost: null,
+  replies: [],
   isLoading: false,
   error: null,
   
@@ -49,8 +52,19 @@ export const usePostStore = create<PostState>((set, get) => ({
     try {
       const post = await postApi.getPostById(postId);
       set({ currentPost: post, isLoading: false });
+      // Fetch replies after getting the post
+      get().fetchReplies(postId);
     } catch (error) {
       set({ error: 'Failed to fetch post', isLoading: false });
+    }
+  },
+
+  fetchReplies: async (postId) => {
+    try {
+      const replies = await postApi.getReplies(postId);
+      set({ replies });
+    } catch (error) {
+      console.error('Failed to fetch replies:', error);
     }
   },
   
@@ -59,12 +73,21 @@ export const usePostStore = create<PostState>((set, get) => ({
     try {
       const newPost = await postApi.createPost(postData);
       
-      // Update the feed with the new post
-      const { posts } = get();
-      set({ 
-        posts: [newPost, ...posts], 
-        isLoading: false 
-      });
+      if (postData.reply_to_post_id) {
+        // If this is a reply, add it to the replies list
+        const { replies } = get();
+        set({ 
+          replies: [newPost, ...replies],
+          isLoading: false 
+        });
+      } else {
+        // If this is a regular post, add it to the feed
+        const { posts } = get();
+        set({ 
+          posts: [newPost, ...posts], 
+          isLoading: false 
+        });
+      }
       
       return newPost;
     } catch (error) {
@@ -73,30 +96,30 @@ export const usePostStore = create<PostState>((set, get) => ({
     }
   },
   
-  likePost: async (postId, userId) => {
+  likePost: async (postId, isLiked) => {
     try {
-      await postApi.likePost(postId, { user_id: userId });
+      if (isLiked) {
+        await postApi.unlikePost(postId);
+      } else {
+        await postApi.likePost(postId);
+      }
       
-      // Update the post in the feed
+      // Update the post in all relevant states
       const { posts, userPosts, currentPost } = get();
       
       // Update in feed
       const updatedPosts = posts.map(post => 
-        post.id === postId 
-          ? { ...post, like_count: post.like_count + 1 } 
-          : post
+        post.id === postId ? { ...post, like_count: post.like_count + (isLiked ? -1 : 1) } : post
       );
       
       // Update in user posts
       const updatedUserPosts = userPosts.map(post => 
-        post.id === postId 
-          ? { ...post, like_count: post.like_count + 1 } 
-          : post
+        post.id === postId ? { ...post, like_count: post.like_count + (isLiked ? -1 : 1) } : post
       );
       
       // Update current post if it's the one being liked
       const updatedCurrentPost = currentPost && currentPost.id === postId
-        ? { ...currentPost, like_count: currentPost.like_count + 1 }
+        ? { ...currentPost, like_count: currentPost.like_count + (isLiked ? -1 : 1) }
         : currentPost;
       
       set({ 
@@ -105,7 +128,8 @@ export const usePostStore = create<PostState>((set, get) => ({
         currentPost: updatedCurrentPost
       });
     } catch (error) {
-      set({ error: 'Failed to like post' });
+      set({ error: isLiked ? 'Failed to unlike post' : 'Failed to like post' });
+      throw error;
     }
   },
   
@@ -113,21 +137,17 @@ export const usePostStore = create<PostState>((set, get) => ({
     try {
       await postApi.repostPost(postId, userId);
       
-      // Update the post in the feed
+      // Update the post in all relevant states
       const { posts, userPosts, currentPost } = get();
       
       // Update in feed
       const updatedPosts = posts.map(post => 
-        post.id === postId 
-          ? { ...post, repost_count: post.repost_count + 1 } 
-          : post
+        post.id === postId ? { ...post, repost_count: post.repost_count + 1 } : post
       );
       
       // Update in user posts
       const updatedUserPosts = userPosts.map(post => 
-        post.id === postId 
-          ? { ...post, repost_count: post.repost_count + 1 } 
-          : post
+        post.id === postId ? { ...post, repost_count: post.repost_count + 1 } : post
       );
       
       // Update current post if it's the one being reposted
@@ -142,6 +162,7 @@ export const usePostStore = create<PostState>((set, get) => ({
       });
     } catch (error) {
       set({ error: 'Failed to repost' });
+      throw error;
     }
   },
 })); 

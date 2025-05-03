@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Heart, MessageCircle, Repeat2, Share } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatNumber } from '@/lib/utils';
 import { Post as ApiPost } from '@/types';
+import { usePostStore } from '@/store/postStore';
+import { useAuthStore } from '@/store/authStore';
+import { postApi } from '@/api';
 
 interface PostCardPost {
   id: string;
@@ -32,15 +35,19 @@ interface PostCardProps {
 }
 
 export function PostCard({ post: rawPost, isReply = false, hideActions = false }: PostCardProps) {
+  const navigate = useNavigate();
+  const { repostPost } = usePostStore();
+  const { user } = useAuthStore();
+  
   // Transform API post to PostCardPost if needed
   const post: PostCardPost = 'like_count' in rawPost ? {
     id: rawPost.id,
     content: rawPost.content,
     created_at: rawPost.created_at,
     likes_count: rawPost.like_count || 0,
-    replies_count: 0, // TODO: Add reply count to API
+    replies_count: rawPost.reply_count || 0,
     reposts_count: rawPost.repost_count || 0,
-    liked_by_user: false, // TODO: Add liked_by_user to API
+    liked_by_user: rawPost.has_liked || false,
     reposted_by_user: false, // TODO: Add reposted_by_user to API
     user: rawPost.user ? {
       id: rawPost.user.id,
@@ -60,22 +67,38 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
   const [reposted, setReposted] = useState(post.reposted_by_user);
   const [repostsCount, setRepostsCount] = useState(post.reposts_count);
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // In a real app, you would call an API here
-    setLiked(!liked);
-    setLikesCount(liked ? likesCount - 1 : likesCount + 1);
+    if (!user) return;
+    
+    try {
+      if (liked) {
+        await postApi.unlikePost(post.id);
+      } else {
+        await postApi.likePost(post.id);
+      }
+      setLiked(!liked);
+      setLikesCount(prev => liked ? prev - 1 : prev + 1);
+    } catch (error) {
+      console.error('Failed to toggle like:', error);
+    }
   };
 
-  const handleRepost = (e: React.MouseEvent) => {
+  const handleRepost = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // In a real app, you would call an API here
-    setReposted(!reposted);
-    setRepostsCount(reposted ? repostsCount - 1 : repostsCount + 1);
+    if (!user) return;
+    
+    try {
+      await repostPost(post.id, user.id);
+      setReposted(!reposted);
+      setRepostsCount(prev => reposted ? prev - 1 : prev + 1);
+    } catch (error) {
+      console.error('Failed to repost:', error);
+    }
   };
 
   const handleShare = (e: React.MouseEvent) => {
@@ -90,15 +113,26 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
     try {
       const date = new Date(dateString);
       return format(date, 'MMM d');
-    } catch (e) {
+    } catch (error) {
+      console.error('Error formatting date:', error);
       return 'Unknown date';
     }
   };
 
+  const handlePostClick = () => {
+    navigate(`/post/${post.id}`);
+  };
+
+  const handleUserClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/profile/${post.user.username}`);
+  };
+
   return (
-    <Link 
-      to={`/post/${post.id}`} 
-      className="block hover:bg-accent/5 transition-all duration-200"
+    <div 
+      onClick={handlePostClick}
+      className="block hover:bg-accent/5 transition-all duration-200 cursor-pointer"
     >
       <article className={cn(
         "p-4 border-b border-border/40", 
@@ -106,10 +140,9 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
       )}>
         <div className="flex gap-3">
           <div className="flex-shrink-0">
-            <Link 
-              to={`/profile/${post.user.username}`} 
-              className="block gradient-hover rounded-full" 
-              onClick={(e) => e.stopPropagation()}
+            <div 
+              onClick={handleUserClick}
+              className="block gradient-hover rounded-full cursor-pointer"
             >
               <Avatar className="h-10 w-10 ring-2 ring-background">
                 <AvatarImage src={post.user.avatar_url} alt={post.user.username} />
@@ -117,18 +150,17 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
                   {post.user.display_name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-            </Link>
+            </div>
           </div>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1 mb-0.5">
-              <Link 
-                to={`/profile/${post.user.username}`} 
-                className="font-semibold truncate hover:underline hover:text-primary transition-colors duration-200"
-                onClick={(e) => e.stopPropagation()}
+              <span 
+                onClick={handleUserClick}
+                className="font-semibold truncate hover:underline hover:text-primary transition-colors duration-200 cursor-pointer"
               >
                 {post.user.display_name}
-              </Link>
+              </span>
               <span className="text-muted-foreground">@{post.user.username}</span>
               <span className="text-muted-foreground">·</span>
               <span className="text-muted-foreground text-sm">{formatDate(post.created_at)}</span>
@@ -197,7 +229,7 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
           </div>
         </div>
       </article>
-    </Link>
+    </div>
   );
 }
 

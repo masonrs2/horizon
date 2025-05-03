@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
-import { ArrowLeft, MoreHorizontal } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, MoreHorizontal, Heart, MessageCircle, Repeat2, Share } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../ui/avatar';
 import { Button } from '../ui/button';
 import { formatNumber } from '@/lib/utils';
 import { usePostStore } from '@/store/postStore';
+import { useAuthStore } from '@/store/authStore';
+import { cn } from '@/lib/utils';
+import { postApi } from '@/api';
 
 interface PostProps {
   post?: {
@@ -29,13 +32,30 @@ interface PostProps {
 export function Post({ post: propPost }: PostProps) {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const { currentPost, isLoading, error, fetchPostById } = usePostStore();
+  const { currentPost, isLoading, error, fetchPostById, repostPost } = usePostStore();
+  const { user } = useAuthStore();
+
+  // Initialize liked state from either prop post or current post
+  const [liked, setLiked] = useState(() => {
+    if (propPost?.stats?.likes) {
+      return propPost.stats.likes > 0;
+    }
+    return currentPost?.has_liked || false;
+  });
+  const [reposted, setReposted] = useState(false);
 
   useEffect(() => {
     if (postId) {
       fetchPostById(postId);
     }
   }, [postId, fetchPostById]);
+
+  // Update liked state when currentPost changes
+  useEffect(() => {
+    if (currentPost) {
+      setLiked(currentPost.has_liked || false);
+    }
+  }, [currentPost]);
 
   // If post is provided as prop, use that, otherwise use the fetched post
   const post = propPost || (currentPost && currentPost.user ? {
@@ -49,12 +69,53 @@ export function Post({ post: propPost }: PostProps) {
     },
     createdAt: currentPost.created_at,
     stats: {
-      replies: 0, // TODO: Add reply count to post model
+      replies: currentPost.reply_count || 0,
       reposts: currentPost.repost_count || 0,
       likes: currentPost.like_count || 0,
       views: 0 // TODO: Add view count to post model
     }
   } : null);
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user || !post) return;
+    
+    try {
+      if (liked) {
+        await postApi.unlikePost(post.id);
+      } else {
+        await postApi.likePost(post.id);
+      }
+      
+      // Update local state immediately for better UX
+      setLiked(!liked);
+      
+      // Update the post stats by fetching the latest state
+      if (postId) {
+        fetchPostById(postId);
+      }
+    } catch (error) {
+      console.error('Failed to toggle like:', error);
+      // Revert local state if the API call failed
+      setLiked(liked);
+    }
+  };
+
+  const handleRepost = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user || !post) return;
+    
+    try {
+      await repostPost(post.id, user.id);
+      setReposted(!reposted);
+    } catch (error) {
+      console.error('Failed to repost:', error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -152,19 +213,53 @@ export function Post({ post: propPost }: PostProps) {
           {post.createdAt} · {formatNumber(post.stats.views)} views
         </div>
 
-        <div className="flex items-center gap-6 mt-4 py-4 border-y">
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between max-w-md mt-4 py-4 border-y">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full gap-1.5 btn-hover-effect"
+          >
+            <MessageCircle className="h-5 w-5" />
             <span className="font-semibold">{formatNumber(post.stats.replies)}</span>
-            <span className="text-muted-foreground">Replies</span>
-          </div>
-          <div className="flex items-center gap-1">
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={cn(
+              "rounded-full gap-1.5 btn-hover-effect",
+              reposted 
+                ? "text-green-500 hover:text-green-600 hover:bg-green-100/20" 
+                : "text-muted-foreground hover:text-green-500 hover:bg-green-100/10"
+            )}
+            onClick={handleRepost}
+          >
+            <Repeat2 className="h-5 w-5" />
             <span className="font-semibold">{formatNumber(post.stats.reposts)}</span>
-            <span className="text-muted-foreground">Reposts</span>
-          </div>
-          <div className="flex items-center gap-1">
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={cn(
+              "rounded-full gap-1.5 btn-hover-effect",
+              liked 
+                ? "text-primary hover:text-primary/90 hover:bg-primary/10" 
+                : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+            )}
+            onClick={handleLike}
+          >
+            <Heart className={cn("h-5 w-5", liked && "fill-current")} />
             <span className="font-semibold">{formatNumber(post.stats.likes)}</span>
-            <span className="text-muted-foreground">Likes</span>
-          </div>
+          </Button>
+          
+          <Button 
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full btn-hover-effect"
+          >
+            <Share className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 

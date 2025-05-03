@@ -18,32 +18,48 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
   error: null,
 
-  login: async (credentials) => {
+  login: async (credentials: LoginRequest) => {
     set({ isLoading: true, error: null });
     try {
       const response = await userApi.login(credentials);
-      localStorage.setItem('token', response.access_token);
-      set({ 
+      const { access_token, refresh_token, user_id, username, email, display_name } = response.data;
+      
+      // Store tokens
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      
+      // Update state
+      set({
+        isAuthenticated: true,
         user: {
-          id: response.user_id,
-          username: response.username,
-          display_name: response.display_name,
-          email: response.email,
-          avatar_url: ''
-        }, 
-        isAuthenticated: true, 
-        isLoading: false 
+          id: user_id,
+          username,
+          email,
+          display_name,
+          is_private: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          email_verified: false
+        },
+        error: null,
+        isLoading: false,
       });
-    } catch (error) {
-      set({ 
-        error: 'Invalid username or password', 
-        isLoading: false 
-      });
+    } catch (error: any) {
+      // Handle the new error format
+      let errorMessage = 'Login failed';
+      if (error.response?.data?.errors?.length > 0) {
+        errorMessage = error.response.data.errors.join(', ');
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      set({ error: errorMessage, isLoading: false });
+      throw error; // Re-throw to let the component handle it
     }
   },
 
   logout: () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     set({ 
       user: null, 
       isAuthenticated: false 
@@ -51,20 +67,26 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   checkAuth: async () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     if (!token) {
-      set({ isAuthenticated: false });
+      set({ isAuthenticated: false, user: null });
       return;
     }
 
     set({ isLoading: true });
     try {
-      // We would typically have an endpoint to validate the token
-      // and return the current user. For now, we'll just assume the token is valid.
-      // In a real app, you'd call an endpoint like /me or /validate-token
-      set({ isAuthenticated: true, isLoading: false });
+      // Fetch the current user data from the /auth/me endpoint
+      const response = await userApi.getUserMe();
+      
+      set({ 
+        isAuthenticated: true, 
+        user: response.data,
+        isLoading: false 
+      });
     } catch (error) {
-      localStorage.removeItem('token');
+      console.error('Failed to validate auth:', error);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       set({ 
         user: null, 
         isAuthenticated: false, 

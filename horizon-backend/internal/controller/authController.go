@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"horizon-backend/internal/auth"
 	"horizon-backend/internal/middleware"
+	"horizon-backend/internal/validation"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -52,12 +53,26 @@ func (c *AuthController) Login(ctx echo.Context) error {
 	// Parse request
 	req := new(LoginRequest)
 	if err := ctx.Bind(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+			"message": "Invalid request format",
+			"errors":  []string{"Request format is invalid"},
+		})
 	}
 
-	// Validate request
-	if req.Username == "" || req.Password == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "username and password are required")
+	// Validate request with specific error messages
+	var errors []string
+	if req.Username == "" {
+		errors = append(errors, "Username is required")
+	}
+	if req.Password == "" {
+		errors = append(errors, "Password is required")
+	}
+
+	if len(errors) > 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+			"message": "Validation failed",
+			"errors":  errors,
+		})
 	}
 
 	// Authenticate user
@@ -65,17 +80,31 @@ func (c *AuthController) Login(ctx echo.Context) error {
 	if err != nil {
 		// Return appropriate error
 		switch err {
-		case auth.ErrUserNotFound, auth.ErrInvalidPassword:
-			return echo.NewHTTPError(http.StatusUnauthorized, "invalid username or password")
+		case auth.ErrUserNotFound:
+			return echo.NewHTTPError(http.StatusUnauthorized, map[string]interface{}{
+				"message": "Authentication failed",
+				"errors":  []string{"User not found"},
+			})
+		case auth.ErrInvalidPassword:
+			return echo.NewHTTPError(http.StatusUnauthorized, map[string]interface{}{
+				"message": "Authentication failed",
+				"errors":  []string{"Invalid password"},
+			})
 		default:
-			return echo.NewHTTPError(http.StatusInternalServerError, "authentication failed")
+			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+				"message": "Authentication failed",
+				"errors":  []string{"An unexpected error occurred"},
+			})
 		}
 	}
 
 	// Get user from token to include in response
 	user, err := c.authProvider.GetUserFromToken(ctx.Request().Context(), accessToken)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "error getting user information")
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+			"message": "Error getting user information",
+			"errors":  []string{"Failed to retrieve user information"},
+		})
 	}
 
 	// Format UUID as string
@@ -97,24 +126,77 @@ func (c *AuthController) Register(ctx echo.Context) error {
 	// Parse request
 	req := new(RegisterRequest)
 	if err := ctx.Bind(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
 	}
 
-	// Validate request
-	if req.Username == "" || req.Email == "" || req.Password == "" || req.DisplayName == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "all fields are required")
+	// Validate each field individually and collect errors
+	var errors []string
+
+	if req.Username == "" {
+		errors = append(errors, "Username is required")
+	} else if len(req.Username) < 3 {
+		errors = append(errors, "Username must be at least 3 characters long")
+	} else if len(req.Username) > 30 {
+		errors = append(errors, "Username cannot exceed 30 characters")
+	}
+
+	if req.Email == "" {
+		errors = append(errors, "Email is required")
+	} else if !validation.IsValidEmail(req.Email) {
+		errors = append(errors, "Invalid email format")
+	}
+
+	if req.Password == "" {
+		errors = append(errors, "Password is required")
+	} else if len(req.Password) < 8 {
+		errors = append(errors, "Password must be at least 8 characters long")
+	}
+
+	if req.DisplayName == "" {
+		errors = append(errors, "Display name is required")
+	} else if len(req.DisplayName) < 2 {
+		errors = append(errors, "Display name must be at least 2 characters long")
+	} else if len(req.DisplayName) > 50 {
+		errors = append(errors, "Display name cannot exceed 50 characters")
+	}
+
+	if len(errors) > 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+			"message": "Validation failed",
+			"errors":  errors,
+		})
 	}
 
 	// Register user
 	user, err := c.authProvider.Register(ctx.Request().Context(), req.Username, req.Email, req.Password, req.DisplayName)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "registration failed: "+err.Error())
+		// Handle specific registration errors
+		switch {
+		case err.Error() == "username already exists":
+			return echo.NewHTTPError(http.StatusConflict, map[string]interface{}{
+				"message": "Registration failed",
+				"errors":  []string{"Username is already taken"},
+			})
+		case err.Error() == "email already exists":
+			return echo.NewHTTPError(http.StatusConflict, map[string]interface{}{
+				"message": "Registration failed",
+				"errors":  []string{"Email is already registered"},
+			})
+		default:
+			return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+				"message": "Registration failed",
+				"errors":  []string{err.Error()},
+			})
+		}
 	}
 
 	// Login the newly registered user
 	accessToken, refreshToken, err := c.authProvider.Login(ctx.Request().Context(), req.Username, req.Password)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "registration successful but login failed")
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+			"message": "Registration successful but login failed",
+			"errors":  []string{"Unable to log in after registration"},
+		})
 	}
 
 	// Format UUID as string

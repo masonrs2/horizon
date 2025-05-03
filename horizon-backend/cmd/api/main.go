@@ -37,7 +37,7 @@ func main() {
 	// Initialize services
 	healthService := service.NewHealthService(queries)
 	userService := service.NewUserService(queries)
-	postService := service.NewPostService(queries)
+	postService := service.NewPostService(queries, dbPool)
 
 	// Initialize auth provider
 	authProvider := auth.GetAuthProvider(queries, cfg)
@@ -81,6 +81,8 @@ func main() {
 	postGroup.PUT("/:id", postController.UpdatePostContent, authMiddleware)
 	postGroup.POST("/:id/like", postController.LikePost, authMiddleware)
 	postGroup.DELETE("/:id/like", postController.UnlikePost, authMiddleware)
+	postGroup.GET("/:id/replies", postController.GetPostReplies, authMiddleware)
+	postGroup.GET("/:id/has_liked", postController.HasLiked, authMiddleware)
 
 	// User post routes
 	userGroup.GET("/:id/posts", postController.GetUserPosts, authMiddleware)

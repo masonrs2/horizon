@@ -26,6 +26,8 @@ export interface Post {
   media_urls: string[];
   like_count: number;
   repost_count: number;
+  reply_count?: number;
+  has_liked: boolean;
   user?: User;
 }
 

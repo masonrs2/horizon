@@ -28,9 +28,8 @@ interface PostCardPost {
 
 export function PostPage() {
   const { postId } = useParams<{ postId: string }>();
-  const { currentPost: post, isLoading, error, fetchPostById } = usePostStore();
+  const { currentPost: post, replies, isLoading, error, fetchPostById } = usePostStore();
   const { isAuthenticated } = useAuthStore();
-  const [replies, setReplies] = useState<PostCardPost[]>([]);
 
   useEffect(() => {
     if (postId) {
@@ -43,46 +42,6 @@ export function PostPage() {
       fetchPostById(postId);
     }
   };
-
-  // Mock replies for demonstration
-  useEffect(() => {
-    if (post) {
-      setReplies([
-        {
-          id: 'r1',
-          content: 'This is amazing! I love how you captured that moment. The colors are truly breathtaking.',
-          created_at: '2023-04-15T19:30:00Z',
-          likes_count: 12,
-          replies_count: 1,
-          reposts_count: 0,
-          liked_by_user: false,
-          reposted_by_user: false,
-          user: {
-            id: 'ru1',
-            username: 'natureadmirer',
-            display_name: 'Emma Wilson',
-            avatar_url: 'https://i.pravatar.cc/150?img=29'
-          }
-        },
-        {
-          id: 'r2',
-          content: 'Where was this taken? I need to add this to my travel bucket list!',
-          created_at: '2023-04-16T10:15:00Z',
-          likes_count: 8,
-          replies_count: 0,
-          reposts_count: 0,
-          liked_by_user: true,
-          reposted_by_user: false,
-          user: {
-            id: 'ru2',
-            username: 'travelbug',
-            display_name: 'Marco Torres',
-            avatar_url: 'https://i.pravatar.cc/150?img=12'
-          }
-        }
-      ]);
-    }
-  }, [post]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -113,9 +72,9 @@ export function PostPage() {
       content: post.content,
       created_at: post.created_at,
       likes_count: post.like_count || 0,
-      replies_count: replies.length, // TODO: Add reply count to API
+      replies_count: replies.length,
       reposts_count: post.repost_count || 0,
-      liked_by_user: false, // TODO: Add liked_by_user to API
+      liked_by_user: post.has_liked || false,
       reposted_by_user: false, // TODO: Add reposted_by_user to API
       user: post.user ? {
         id: post.user.id,
@@ -129,6 +88,28 @@ export function PostPage() {
         avatar_url: ''
       }
     };
+
+    const transformReply = (reply: PostType): PostCardPost => ({
+      id: reply.id,
+      content: reply.content,
+      created_at: reply.created_at,
+      likes_count: reply.like_count || 0,
+      replies_count: 0,
+      reposts_count: reply.repost_count || 0,
+      liked_by_user: false,
+      reposted_by_user: false,
+      user: reply.user ? {
+        id: reply.user.id,
+        username: reply.user.username,
+        display_name: reply.user.display_name || reply.user.username,
+        avatar_url: reply.user.avatar_url || ''
+      } : {
+        id: 'unknown',
+        username: 'unknown',
+        display_name: 'Unknown User',
+        avatar_url: ''
+      }
+    });
 
     return (
       <div className="divide-y divide-border/40">
@@ -151,7 +132,7 @@ export function PostPage() {
         {/* Replies */}
         {replies.length > 0 ? (
           replies.map((reply) => (
-            <PostCard key={reply.id} post={reply} isReply={true} />
+            <PostCard key={reply.id} post={transformReply(reply)} isReply={true} />
           ))
         ) : (
           <div className="p-8 text-center text-muted-foreground">

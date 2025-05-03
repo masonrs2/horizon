@@ -58,6 +58,14 @@ func (s *UserService) RegisterUser(ctx context.Context, user *model.User) (*mode
 		return nil, fmt.Errorf("error checking username: %w", err)
 	}
 
+	// Check if email already exists
+	_, err = s.queries.GetUserByEmail(ctx, user.Email)
+	if err == nil { // No error means email exists
+		return nil, fmt.Errorf("email already exists")
+	} else if err != pgx.ErrNoRows {
+		return nil, fmt.Errorf("error checking email: %w", err)
+	}
+
 	// Hash the password
 	hashedPassword, err := util.HashPassword(user.Password)
 	if err != nil {

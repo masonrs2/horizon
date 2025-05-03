@@ -126,4 +126,10 @@ RETURNING like_count;
 UPDATE posts
 SET repost_count = repost_count + 1
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING repost_count; 
+RETURNING repost_count;
+
+-- name: HasUserLikedPost :one
+SELECT EXISTS (
+    SELECT 1 FROM post_likes
+    WHERE post_id = $1 AND user_id = $2
+) as has_liked; 

@@ -17,4 +17,5 @@ type Post struct {
 	MediaUrls     []string           `json:"media_urls"`
 	LikeCount     int32              `json:"like_count"`
 	RepostCount   int32              `json:"repost_count"`
+	HasLiked      bool               `json:"has_liked"`
 }

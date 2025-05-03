@@ -40,7 +40,7 @@ type FormData = z.infer<typeof formSchema>;
 export function RegisterForm() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   
   // Initialize form
   const form = useForm<FormData>({
@@ -56,7 +56,7 @@ export function RegisterForm() {
   
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
-    setError(null);
+    setErrors([]);
     
     try {
       // Register the user
@@ -74,7 +74,14 @@ export function RegisterForm() {
       navigate('/login');
     } catch (error: any) {
       console.error('Registration failed:', error);
-      setError(error.response?.data?.message || 'Failed to create account. Please try again.');
+      // Handle the new error format
+      if (error.response?.data?.errors) {
+        setErrors(error.response.data.errors);
+      } else if (error.response?.data?.message) {
+        setErrors([error.response.data.message]);
+      } else {
+        setErrors(['Failed to create account. Please try again.']);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -83,9 +90,13 @@ export function RegisterForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {error && (
+        {errors.length > 0 && (
           <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-            {error}
+            <ul className="list-disc list-inside">
+              {errors.map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+            </ul>
           </div>
         )}
         

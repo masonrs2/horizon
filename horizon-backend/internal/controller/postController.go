@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"horizon-backend/internal/middleware"
 	"horizon-backend/internal/model"
 	"horizon-backend/internal/service"
@@ -113,10 +114,54 @@ func (c *PostController) LikePost(ctx echo.Context) error {
 	// Like the post
 	err = c.service.LikePost(ctx.Request().Context(), postID, userID)
 	if err != nil {
+		if err.Error() == "user has already liked this post" {
+			return echo.NewHTTPError(http.StatusConflict, "you have already liked this post")
+		}
+		if err.Error() == "failed to find post: no rows in result set" {
+			return echo.NewHTTPError(http.StatusNotFound, "post not found")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to like post: "+err.Error())
 	}
 
 	return ctx.JSON(http.StatusOK, map[string]string{"message": "post liked"})
+}
+
+// HasLiked checks if a user has liked a post
+func (c *PostController) HasLiked(ctx echo.Context) error {
+	// Get post ID from path parameter
+	postIDStr := ctx.Param("id")
+	if postIDStr == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "post ID is required")
+	}
+
+	// Convert string ID to UUID
+	postUUID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid post ID format")
+	}
+
+	// Convert to pgtype.UUID
+	postID := pgtype.UUID{
+		Bytes: postUUID,
+		Valid: true,
+	}
+
+	// Get user ID from context
+	userID := middleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	// Check if user has liked the post
+	hasLiked, err := c.service.HasLiked(ctx.Request().Context(), postID, userID)
+	if err != nil {
+		if err.Error() == "failed to find post: no rows in result set" {
+			return echo.NewHTTPError(http.StatusNotFound, "post not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to check like status: "+err.Error())
+	}
+
+	return ctx.JSON(http.StatusOK, map[string]bool{"has_liked": hasLiked})
 }
 
 // UnlikePost unlikes a post
@@ -178,8 +223,12 @@ func (c *PostController) GetPosts(ctx echo.Context) error {
 		}
 	}
 
-	// Get posts from service
-	posts, err := c.service.GetPosts(ctx.Request().Context(), limit, offset)
+	// Create a context with the user ID
+	userID := middleware.GetUserIDFromContext(ctx)
+	reqCtx := context.WithValue(ctx.Request().Context(), "user_id", userID)
+
+	// Get posts from service with the user context
+	posts, err := c.service.GetPosts(reqCtx, limit, offset)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get posts: "+err.Error())
 	}
@@ -266,11 +315,69 @@ func (c *PostController) GetPostByID(ctx echo.Context) error {
 		Valid: true,
 	}
 
-	// Get post from service
-	post, err := c.service.GetPostById(ctx.Request().Context(), postId)
+	// Create a context with the user ID
+	userID := middleware.GetUserIDFromContext(ctx)
+	reqCtx := context.WithValue(ctx.Request().Context(), "user_id", userID)
+
+	// Get post from service with the user context
+	post, err := c.service.GetPostById(reqCtx, postId)
 	if err != nil {
+		if err.Error() == "failed to find post: no rows in result set" {
+			return echo.NewHTTPError(http.StatusNotFound, "post not found")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get post: "+err.Error())
 	}
 
 	return ctx.JSON(http.StatusOK, post)
+}
+
+// GetPostReplies retrieves replies for a specific post
+func (c *PostController) GetPostReplies(ctx echo.Context) error {
+	// Get post ID from path parameter
+	postIDStr := ctx.Param("id")
+	if postIDStr == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "post ID is required")
+	}
+
+	// Convert string ID to UUID
+	postUUID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid post ID format")
+	}
+
+	// Convert to pgtype.UUID
+	postID := pgtype.UUID{
+		Bytes: postUUID,
+		Valid: true,
+	}
+
+	// Get pagination parameters
+	limitStr := ctx.QueryParam("limit")
+	offsetStr := ctx.QueryParam("offset")
+
+	var limit int32 = 10 // Default limit
+	var offset int32 = 0 // Default offset
+
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = int32(parsedLimit)
+			if limit > 50 {
+				limit = 50 // Cap at 50
+			}
+		}
+	}
+
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = int32(parsedOffset)
+		}
+	}
+
+	// Get replies from service
+	replies, err := c.service.GetPostReplies(ctx.Request().Context(), postID, limit, offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get post replies: "+err.Error())
+	}
+
+	return ctx.JSON(http.StatusOK, replies)
 }

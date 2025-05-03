@@ -399,6 +399,25 @@ func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]Pos
 	return items, nil
 }
 
+const hasUserLikedPost = `-- name: HasUserLikedPost :one
+SELECT EXISTS (
+    SELECT 1 FROM post_likes
+    WHERE post_id = $1 AND user_id = $2
+) as has_liked
+`
+
+type HasUserLikedPostParams struct {
+	PostID pgtype.UUID `json:"post_id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) HasUserLikedPost(ctx context.Context, arg HasUserLikedPostParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasUserLikedPost, arg.PostID, arg.UserID)
+	var has_liked bool
+	err := row.Scan(&has_liked)
+	return has_liked, err
+}
+
 const incrementLikeCount = `-- name: IncrementLikeCount :one
 UPDATE posts
 SET like_count = like_count + 1
