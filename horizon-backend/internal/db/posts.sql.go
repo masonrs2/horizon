@@ -12,16 +12,25 @@ import (
 )
 
 const createPost = `-- name: CreatePost :one
-INSERT INTO posts (
-    user_id,
-    content,
-    is_private,
-    reply_to_post_id,
-    media_urls
-) VALUES (
-    $1, $2, $3, $4, $5
+WITH new_post AS (
+    INSERT INTO posts (
+        user_id,
+        content,
+        is_private,
+        reply_to_post_id,
+        media_urls
+    ) VALUES (
+        $1, $2, $3, $4, $5
+    )
+    RETURNING id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count
 )
-RETURNING id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM new_post p
+JOIN users u ON p.user_id = u.id
 `
 
 type CreatePostParams struct {
@@ -32,7 +41,25 @@ type CreatePostParams struct {
 	MediaUrls     []string    `json:"media_urls"`
 }
 
-func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, error) {
+type CreatePostRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (CreatePostRow, error) {
 	row := q.db.QueryRow(ctx, createPost,
 		arg.UserID,
 		arg.Content,
@@ -40,7 +67,7 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 		arg.ReplyToPostID,
 		arg.MediaUrls,
 	)
-	var i Post
+	var i CreatePostRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -54,6 +81,9 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 		&i.MediaUrls,
 		&i.LikeCount,
 		&i.RepostCount,
+		&i.Username,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -90,9 +120,15 @@ func (q *Queries) DeletePost(ctx context.Context, arg DeletePostParams) error {
 }
 
 const getAllPosts = `-- name: GetAllPosts :many
-SELECT id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count FROM posts 
-WHERE deleted_at IS NULL 
-ORDER BY created_at DESC
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+WHERE p.deleted_at IS NULL 
+ORDER BY p.created_at DESC
 LIMIT $1 OFFSET $2
 `
 
@@ -101,15 +137,33 @@ type GetAllPostsParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) GetAllPosts(ctx context.Context, arg GetAllPostsParams) ([]Post, error) {
+type GetAllPostsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetAllPosts(ctx context.Context, arg GetAllPostsParams) ([]GetAllPostsRow, error) {
 	rows, err := q.db.Query(ctx, getAllPosts, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Post
+	var items []GetAllPostsRow
 	for rows.Next() {
-		var i Post
+		var i GetAllPostsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -123,6 +177,9 @@ func (q *Queries) GetAllPosts(ctx context.Context, arg GetAllPostsParams) ([]Pos
 			&i.MediaUrls,
 			&i.LikeCount,
 			&i.RepostCount,
+			&i.Username,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -135,13 +192,37 @@ func (q *Queries) GetAllPosts(ctx context.Context, arg GetAllPostsParams) ([]Pos
 }
 
 const getPostByID = `-- name: GetPostByID :one
-SELECT id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count FROM posts 
-WHERE id = $1 AND deleted_at IS NULL
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+WHERE p.id = $1 AND p.deleted_at IS NULL
 `
 
-func (q *Queries) GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error) {
+type GetPostByIDRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetPostByID(ctx context.Context, id pgtype.UUID) (GetPostByIDRow, error) {
 	row := q.db.QueryRow(ctx, getPostByID, id)
-	var i Post
+	var i GetPostByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -155,6 +236,9 @@ func (q *Queries) GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 		&i.MediaUrls,
 		&i.LikeCount,
 		&i.RepostCount,
+		&i.Username,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -172,10 +256,16 @@ func (q *Queries) GetPostLikeCount(ctx context.Context, postID pgtype.UUID) (int
 }
 
 const getPostReplies = `-- name: GetPostReplies :many
-SELECT id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count FROM posts
-WHERE reply_to_post_id = $1 
-AND deleted_at IS NULL
-ORDER BY created_at DESC
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+WHERE p.reply_to_post_id = $1 
+AND p.deleted_at IS NULL
+ORDER BY p.created_at DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -185,15 +275,33 @@ type GetPostRepliesParams struct {
 	Offset        int32       `json:"offset"`
 }
 
-func (q *Queries) GetPostReplies(ctx context.Context, arg GetPostRepliesParams) ([]Post, error) {
+type GetPostRepliesRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetPostReplies(ctx context.Context, arg GetPostRepliesParams) ([]GetPostRepliesRow, error) {
 	rows, err := q.db.Query(ctx, getPostReplies, arg.ReplyToPostID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Post
+	var items []GetPostRepliesRow
 	for rows.Next() {
-		var i Post
+		var i GetPostRepliesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -207,6 +315,9 @@ func (q *Queries) GetPostReplies(ctx context.Context, arg GetPostRepliesParams) 
 			&i.MediaUrls,
 			&i.LikeCount,
 			&i.RepostCount,
+			&i.Username,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -253,10 +364,16 @@ func (q *Queries) GetPostStats(ctx context.Context, id pgtype.UUID) (GetPostStat
 }
 
 const getPostsByUserID = `-- name: GetPostsByUserID :many
-SELECT id, user_id, content, created_at, updated_at, deleted_at, is_private, reply_to_post_id, allow_replies, media_urls, like_count, repost_count FROM posts 
-WHERE user_id = $1 
-AND deleted_at IS NULL 
-ORDER BY created_at DESC
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+WHERE p.user_id = $1 
+AND p.deleted_at IS NULL 
+ORDER BY p.created_at DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -266,15 +383,33 @@ type GetPostsByUserIDParams struct {
 	Offset int32       `json:"offset"`
 }
 
-func (q *Queries) GetPostsByUserID(ctx context.Context, arg GetPostsByUserIDParams) ([]Post, error) {
+type GetPostsByUserIDRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetPostsByUserID(ctx context.Context, arg GetPostsByUserIDParams) ([]GetPostsByUserIDRow, error) {
 	rows, err := q.db.Query(ctx, getPostsByUserID, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Post
+	var items []GetPostsByUserIDRow
 	for rows.Next() {
-		var i Post
+		var i GetPostsByUserIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -288,6 +423,9 @@ func (q *Queries) GetPostsByUserID(ctx context.Context, arg GetPostsByUserIDPara
 			&i.MediaUrls,
 			&i.LikeCount,
 			&i.RepostCount,
+			&i.Username,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -300,7 +438,13 @@ func (q *Queries) GetPostsByUserID(ctx context.Context, arg GetPostsByUserIDPara
 }
 
 const getPostsWithHashtag = `-- name: GetPostsWithHashtag :many
-SELECT p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count FROM posts p
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
 INNER JOIN post_hashtags ph ON p.id = ph.post_id
 WHERE ph.hashtag = $1 
 AND p.deleted_at IS NULL
@@ -314,15 +458,33 @@ type GetPostsWithHashtagParams struct {
 	Offset  int32  `json:"offset"`
 }
 
-func (q *Queries) GetPostsWithHashtag(ctx context.Context, arg GetPostsWithHashtagParams) ([]Post, error) {
+type GetPostsWithHashtagRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetPostsWithHashtag(ctx context.Context, arg GetPostsWithHashtagParams) ([]GetPostsWithHashtagRow, error) {
 	rows, err := q.db.Query(ctx, getPostsWithHashtag, arg.Hashtag, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Post
+	var items []GetPostsWithHashtagRow
 	for rows.Next() {
-		var i Post
+		var i GetPostsWithHashtagRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -336,6 +498,9 @@ func (q *Queries) GetPostsWithHashtag(ctx context.Context, arg GetPostsWithHasht
 			&i.MediaUrls,
 			&i.LikeCount,
 			&i.RepostCount,
+			&i.Username,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -348,7 +513,13 @@ func (q *Queries) GetPostsWithHashtag(ctx context.Context, arg GetPostsWithHasht
 }
 
 const getUserFeed = `-- name: GetUserFeed :many
-SELECT p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count FROM posts p
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
 INNER JOIN follows f ON p.user_id = f.followed_id
 WHERE f.follower_id = $1 
 AND p.deleted_at IS NULL
@@ -366,15 +537,33 @@ type GetUserFeedParams struct {
 	Offset     int32       `json:"offset"`
 }
 
-func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]Post, error) {
+type GetUserFeedRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]GetUserFeedRow, error) {
 	rows, err := q.db.Query(ctx, getUserFeed, arg.FollowerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Post
+	var items []GetUserFeedRow
 	for rows.Next() {
-		var i Post
+		var i GetUserFeedRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -388,6 +577,9 @@ func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]Pos
 			&i.MediaUrls,
 			&i.LikeCount,
 			&i.RepostCount,
+			&i.Username,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}

@@ -61,35 +61,113 @@ export const userApi = {
 export const postApi = {
   createPost: async (postData: CreatePostRequest): Promise<Post> => {
     const response = await api.post<Post>('/posts', postData);
-    return response.data;
+    const { username, display_name, avatar_url, ...postFields } = response.data;
+    return {
+      ...postFields,
+      reply_count: response.data.reply_count || 0,
+      has_liked: response.data.has_liked || false,
+      user: {
+        id: response.data.user_id,
+        username: username || 'unknown',
+        display_name: display_name || username || 'Unknown User',
+        avatar_url: avatar_url || '',
+        email: '', // We don't get this from the post response
+        is_private: false,
+        created_at: response.data.created_at,
+        updated_at: response.data.updated_at,
+        email_verified: false
+      }
+    };
   },
   
   getPostById: async (postId: string): Promise<Post> => {
     const response = await api.get<Post>(`/posts/${postId}`);
-    // Ensure the post has the has_liked field
+    const { username, display_name, avatar_url, ...postData } = response.data;
     return {
-      ...response.data,
-      has_liked: response.data.has_liked || false
+      ...postData,
+      has_liked: response.data.has_liked || false,
+      reply_count: response.data.reply_count || 0,
+      user: {
+        id: response.data.user_id,
+        username: username || 'unknown',
+        display_name: display_name || username || 'Unknown User',
+        avatar_url: avatar_url || '',
+        email: '', // We don't get this from the post response
+        is_private: false,
+        created_at: response.data.created_at,
+        updated_at: response.data.updated_at,
+        email_verified: false
+      }
     };
   },
   
   getReplies: async (postId: string): Promise<Post[]> => {
     const response = await api.get<Post[]>(`/posts/${postId}/replies`);
-    return response.data;
+    return response.data.map(post => {
+      const { username, display_name, avatar_url, ...postData } = post;
+      return {
+        ...postData,
+        reply_count: post.reply_count || 0,
+        has_liked: post.has_liked || false,
+        user: {
+          id: post.user_id,
+          username: username || 'unknown',
+          display_name: display_name || username || 'Unknown User',
+          avatar_url: avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          email_verified: false
+        }
+      };
+    });
   },
   
   getFeedPosts: async (): Promise<Post[]> => {
     const response = await api.get<Post[]>('/posts');
-    // Ensure each post has the has_liked field
-    return response.data.map(post => ({
-      ...post,
-      has_liked: post.has_liked || false
-    }));
+    return response.data.map(post => {
+      const { username, display_name, avatar_url, ...postData } = post;
+      return {
+        ...postData,
+        has_liked: post.has_liked || false,
+        reply_count: post.reply_count || 0,
+        user: {
+          id: post.user_id,
+          username: username || 'unknown',
+          display_name: display_name || username || 'Unknown User',
+          avatar_url: avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          email_verified: false
+        }
+      };
+    });
   },
   
   getUserPosts: async (username: string): Promise<Post[]> => {
     const response = await api.get<Post[]>(`/users/${username}/posts`);
-    return response.data;
+    return response.data.map(post => {
+      const { username, display_name, avatar_url, ...postData } = post;
+      return {
+        ...postData,
+        reply_count: post.reply_count || 0,
+        has_liked: post.has_liked || false,
+        user: {
+          id: post.user_id,
+          username: username || 'unknown',
+          display_name: display_name || username || 'Unknown User',
+          avatar_url: avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          email_verified: false
+        }
+      };
+    });
   },
   
   likePost: async (postId: string): Promise<void> => {
@@ -125,6 +203,10 @@ export const postApi = {
   replyToPost: async (postData: CreatePostRequest): Promise<Post> => {
     const response = await api.post<Post>('/posts', postData);
     return response.data;
+  },
+
+  deletePost: async (postId: string): Promise<void> => {
+    await api.delete(`/posts/${postId}`);
   },
 };
 

@@ -17,5 +17,10 @@ type Post struct {
 	MediaUrls     []string           `json:"media_urls"`
 	LikeCount     int32              `json:"like_count"`
 	RepostCount   int32              `json:"repost_count"`
+	ReplyCount    int32              `json:"reply_count"`
 	HasLiked      bool               `json:"has_liked"`
+	// User information
+	Username    string      `json:"username"`
+	DisplayName pgtype.Text `json:"display_name"`
+	AvatarUrl   pgtype.Text `json:"avatar_url"`
 }

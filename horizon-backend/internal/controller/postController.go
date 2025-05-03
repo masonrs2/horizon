@@ -381,3 +381,44 @@ func (c *PostController) GetPostReplies(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, replies)
 }
+
+// DeletePost deletes a post
+func (c *PostController) DeletePost(ctx echo.Context) error {
+	// Get post ID from path parameter
+	postIDStr := ctx.Param("id")
+	if postIDStr == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "post ID is required")
+	}
+
+	// Convert string ID to UUID
+	postUUID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid post ID format")
+	}
+
+	// Convert to pgtype.UUID
+	postID := pgtype.UUID{
+		Bytes: postUUID,
+		Valid: true,
+	}
+
+	// Get user ID from context
+	userID := middleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	// Delete the post
+	err = c.service.DeletePost(ctx.Request().Context(), postID, userID)
+	if err != nil {
+		if err.Error() == "failed to find post: no rows in result set" {
+			return echo.NewHTTPError(http.StatusNotFound, "post not found")
+		}
+		if err.Error() == "unauthorized: post doesn't belong to you" {
+			return echo.NewHTTPError(http.StatusForbidden, "you can only delete your own posts")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete post: "+err.Error())
+	}
+
+	return ctx.NoContent(http.StatusOK)
+}

@@ -58,14 +58,19 @@ export function Post({ post: propPost }: PostProps) {
   }, [currentPost]);
 
   // If post is provided as prop, use that, otherwise use the fetched post
-  const post = propPost || (currentPost && currentPost.user ? {
+  const post = propPost || (currentPost ? {
     id: currentPost.id,
     content: currentPost.content,
-    author: {
-      username: currentPost.user.display_name || currentPost.user.username,
-      handle: currentPost.user.username,
+    author: currentPost.user ? {
+      username: currentPost.user.display_name || currentPost.user.username || 'Unknown User',
+      handle: currentPost.user.username || 'unknown',
       avatarUrl: currentPost.user.avatar_url || '',
       verified: false // TODO: Add verification status to user model
+    } : {
+      username: 'Unknown User',
+      handle: 'unknown',
+      avatarUrl: '',
+      verified: false
     },
     createdAt: currentPost.created_at,
     stats: {
@@ -186,7 +191,13 @@ export function Post({ post: propPost }: PostProps) {
         <div className="flex items-start justify-between">
           <div className="flex gap-3">
             <Avatar className="h-10 w-10">
-              <img src={post.author.avatarUrl} alt={post.author.username} />
+              {post.author.avatarUrl ? (
+                <img src={post.author.avatarUrl} alt={post.author.username} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary">
+                  {post.author.username.charAt(0).toUpperCase()}
+                </div>
+              )}
             </Avatar>
             <div className="flex flex-col">
               <div className="flex items-center gap-1">

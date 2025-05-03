@@ -28,11 +28,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
       
+      // Remove any existing hyphens first, then format correctly
+      const cleanUserId = user_id.replace(/-/g, '');
+      const formattedUserId = cleanUserId.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+      
       // Update state
       set({
         isAuthenticated: true,
         user: {
-          id: user_id,
+          id: formattedUserId,
           username,
           email,
           display_name,
@@ -78,9 +82,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Fetch the current user data from the /auth/me endpoint
       const response = await userApi.getUserMe();
       
+      // Format the user ID as a UUID by adding hyphens if it's not already formatted
+      const userData = response.data;
+      if (userData.id) {
+        const cleanUserId = userData.id.replace(/-/g, '');
+        userData.id = cleanUserId.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+      }
+      
       set({ 
         isAuthenticated: true, 
-        user: response.data,
+        user: userData,
         isLoading: false 
       });
     } catch (error) {

@@ -1,15 +1,22 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Heart, MessageCircle, Repeat2, Share } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Share, MoreVertical, Trash } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn, formatNumber } from '@/lib/utils';
 import { Post as ApiPost } from '@/types';
 import { usePostStore } from '@/store/postStore';
 import { useAuthStore } from '@/store/authStore';
 import { postApi } from '@/api';
+import { toast } from 'sonner';
 
 interface PostCardPost {
   id: string;
@@ -50,12 +57,12 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
     liked_by_user: rawPost.has_liked || false,
     reposted_by_user: false, // TODO: Add reposted_by_user to API
     user: rawPost.user ? {
-      id: rawPost.user.id,
-      username: rawPost.user.username,
-      display_name: rawPost.user.display_name || rawPost.user.username,
+      id: rawPost.user.id || 'unknown',
+      username: rawPost.user.username || 'unknown',
+      display_name: rawPost.user.display_name || rawPost.user.username || 'Unknown User',
       avatar_url: rawPost.user.avatar_url || ''
     } : {
-      id: 'unknown',
+      id: rawPost.user_id || 'unknown', // Try to use the post's user_id if available
       username: 'unknown',
       display_name: 'Unknown User',
       avatar_url: ''
@@ -109,6 +116,27 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
     console.log('Share post:', post.id);
   };
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user) return;
+    
+    try {
+      await postApi.deletePost(post.id);
+      toast.success('Post deleted successfully');
+      // Optionally refresh the page or update the posts list
+      if (window.location.pathname === '/') {
+        window.location.reload();
+      } else {
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Failed to delete post:', error);
+      toast.error('Failed to delete post');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -120,6 +148,9 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
   };
 
   const handlePostClick = () => {
+    if (isReply || hideActions) {
+      return;
+    }
     navigate(`/post/${post.id}`);
   };
 
@@ -145,25 +176,54 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
               className="block gradient-hover rounded-full cursor-pointer"
             >
               <Avatar className="h-10 w-10 ring-2 ring-background">
-                <AvatarImage src={post.user.avatar_url} alt={post.user.username} />
-                <AvatarFallback className="bg-primary/10 text-primary">
-                  {post.user.display_name.charAt(0).toUpperCase()}
-                </AvatarFallback>
+                {post.user.avatar_url ? (
+                  <AvatarImage src={post.user.avatar_url} alt={post.user.username} />
+                ) : (
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {(post.user.display_name || post.user.username || 'U').charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                )}
               </Avatar>
             </div>
           </div>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 mb-0.5">
-              <span 
-                onClick={handleUserClick}
-                className="font-semibold truncate hover:underline hover:text-primary transition-colors duration-200 cursor-pointer"
-              >
-                {post.user.display_name}
-              </span>
-              <span className="text-muted-foreground">@{post.user.username}</span>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground text-sm">{formatDate(post.created_at)}</span>
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div className="flex items-center gap-1">
+                <span 
+                  onClick={handleUserClick}
+                  className="font-semibold truncate hover:underline hover:text-primary transition-colors duration-200 cursor-pointer"
+                >
+                  {post.user.display_name || post.user.username || 'Unknown User'}
+                </span>
+                <span className="text-muted-foreground">@{post.user.username || 'unknown'}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground text-sm">{formatDate(post.created_at)}</span>
+              </div>
+              
+              {user && user.id === post.user.id && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive cursor-pointer"
+                      onClick={handleDelete}
+                    >
+                      <Trash className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
             
             <div className="whitespace-pre-wrap break-words mb-3">{post.content}</div>

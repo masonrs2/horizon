@@ -45,7 +45,7 @@ func (s *PostService) CreatePost(ctx context.Context, post *model.Post) (*model.
 		return nil, fmt.Errorf("failed to create post: %w", err)
 	}
 
-	return dbPostToModelPost(dbPost), nil
+	return s.dbPostToModelPost(dbPost), nil
 }
 
 // UpdatePostContent updates the content of a post
@@ -77,7 +77,7 @@ func (s *PostService) UpdatePostContent(ctx context.Context, postId, userId pgty
 		return nil, fmt.Errorf("failed to update post: %w", err)
 	}
 
-	return dbPostToModelPost(updatedDbPost), nil
+	return s.dbPostToModelPost(updatedDbPost), nil
 }
 
 // HasLiked checks if a user has liked a post
@@ -220,7 +220,7 @@ func (s *PostService) GetPostById(ctx context.Context, postId pgtype.UUID) (*mod
 	}
 
 	// Convert to model post
-	post := dbPostToModelPost(dbPost)
+	post := s.dbPostToModelPost(dbPost)
 
 	// Get the user ID from context
 	userID, ok := ctx.Value("user_id").(pgtype.UUID)
@@ -269,7 +269,7 @@ func (s *PostService) GetPosts(ctx context.Context, limit, offset int32) ([]*mod
 	userID, ok := ctx.Value("user_id").(pgtype.UUID)
 
 	for _, dbPost := range dbPosts {
-		post := dbPostToModelPost(dbPost)
+		post := s.dbPostToModelPost(dbPost)
 
 		// If user is authenticated, check if they've liked each post
 		if ok && userID.Valid {
@@ -320,7 +320,7 @@ func (s *PostService) GetUserPosts(ctx context.Context, userId pgtype.UUID, limi
 	currentUserID, ok := ctx.Value("user_id").(pgtype.UUID)
 
 	for _, dbPost := range dbPosts {
-		post := dbPostToModelPost(dbPost)
+		post := s.dbPostToModelPost(dbPost)
 
 		// If user is authenticated, check if they've liked each post
 		if ok && currentUserID.Valid {
@@ -371,7 +371,7 @@ func (s *PostService) GetPostReplies(ctx context.Context, postId pgtype.UUID, li
 	userID, ok := ctx.Value("user_id").(pgtype.UUID)
 
 	for _, dbPost := range dbPosts {
-		post := dbPostToModelPost(dbPost)
+		post := s.dbPostToModelPost(dbPost)
 
 		// If user is authenticated, check if they've liked each post
 		if ok && userID.Valid {
@@ -392,21 +392,165 @@ func (s *PostService) GetPostReplies(ctx context.Context, postId pgtype.UUID, li
 	return posts, nil
 }
 
-// Helper function to convert db.Post to model.Post
-func dbPostToModelPost(dbPost db.Post) *model.Post {
-	return &model.Post{
-		ID:            dbPost.ID,
-		UserID:        dbPost.UserID,
-		Content:       dbPost.Content,
-		CreatedAt:     dbPost.CreatedAt,
-		UpdatedAt:     dbPost.UpdatedAt,
-		DeletedAt:     dbPost.DeletedAt,
-		IsPrivate:     dbPost.IsPrivate,
-		ReplyToPostID: dbPost.ReplyToPostID,
-		AllowReplies:  dbPost.AllowReplies,
-		MediaUrls:     dbPost.MediaUrls,
-		LikeCount:     dbPost.LikeCount,
-		RepostCount:   dbPost.RepostCount,
-		HasLiked:      false, // Default to false, will be updated if user is authenticated
+// DeletePost deletes a post by ID
+func (s *PostService) DeletePost(ctx context.Context, postId, userId pgtype.UUID) error {
+	// Start a transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
 	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// First verify the post exists and belongs to the user
+	post, err := qtx.GetPostByID(ctx, postId)
+	if err != nil {
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+
+	if post.UserID != userId {
+		return fmt.Errorf("unauthorized: post doesn't belong to you")
+	}
+
+	// Delete the post
+	err = qtx.DeletePost(ctx, db.DeletePostParams{
+		ID:     postId,
+		UserID: userId,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete post: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// Helper function to convert db.Post to model.Post
+func (s *PostService) dbPostToModelPost(dbPost interface{}) *model.Post {
+	// Get post stats to include reply count
+	var post model.Post
+
+	switch p := dbPost.(type) {
+	case db.Post:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+		}
+	case db.CreatePostRow:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+			Username:      p.Username,
+			DisplayName:   p.DisplayName,
+			AvatarUrl:     p.AvatarUrl,
+		}
+	case db.GetPostByIDRow:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+			Username:      p.Username,
+			DisplayName:   p.DisplayName,
+			AvatarUrl:     p.AvatarUrl,
+		}
+	case db.GetAllPostsRow:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+			Username:      p.Username,
+			DisplayName:   p.DisplayName,
+			AvatarUrl:     p.AvatarUrl,
+		}
+	case db.GetPostsByUserIDRow:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+			Username:      p.Username,
+			DisplayName:   p.DisplayName,
+			AvatarUrl:     p.AvatarUrl,
+		}
+	case db.GetPostRepliesRow:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+			Username:      p.Username,
+			DisplayName:   p.DisplayName,
+			AvatarUrl:     p.AvatarUrl,
+		}
+	default:
+		return nil
+	}
+
+	// Get post stats to include reply count
+	qtx := db.New(s.db)
+	stats, err := qtx.GetPostStats(context.Background(), post.ID)
+	if err == nil {
+		post.ReplyCount = int32(stats.ReplyCount)
+	}
+
+	return &post
 }

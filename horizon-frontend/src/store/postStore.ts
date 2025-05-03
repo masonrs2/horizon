@@ -74,11 +74,38 @@ export const usePostStore = create<PostState>((set, get) => ({
       const newPost = await postApi.createPost(postData);
       
       if (postData.reply_to_post_id) {
-        // If this is a reply, add it to the replies list
-        const { replies } = get();
-        set({ 
-          replies: [newPost, ...replies],
-          isLoading: false 
+        // If this is a reply, add it to the replies list and update counts
+        const { replies, posts, userPosts, currentPost } = get();
+        
+        // Add the new reply to the beginning of the replies list
+        const updatedReplies = [newPost, ...replies];
+        
+        // Update feed posts
+        const updatedPosts = posts.map(post => 
+          post.id === postData.reply_to_post_id 
+            ? { ...post, reply_count: (post.reply_count || 0) + 1 }
+            : post
+        );
+
+        // Update user posts
+        const updatedUserPosts = userPosts.map(post => 
+          post.id === postData.reply_to_post_id 
+            ? { ...post, reply_count: (post.reply_count || 0) + 1 }
+            : post
+        );
+
+        // Update current post if it's the parent post
+        const updatedCurrentPost = currentPost && currentPost.id === postData.reply_to_post_id
+          ? { ...currentPost, reply_count: (currentPost.reply_count || 0) + 1 }
+          : currentPost;
+
+        // Update all states at once
+        set({
+          replies: updatedReplies,
+          posts: updatedPosts,
+          userPosts: updatedUserPosts,
+          currentPost: updatedCurrentPost,
+          isLoading: false
         });
       } else {
         // If this is a regular post, add it to the feed

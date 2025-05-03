@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PostCard, PostCardSkeleton } from '@/components/post/PostCard';
@@ -28,7 +28,7 @@ interface PostCardPost {
 
 export function PostPage() {
   const { postId } = useParams<{ postId: string }>();
-  const { currentPost: post, replies, isLoading, error, fetchPostById } = usePostStore();
+  const { currentPost: post, replies, isLoading, error, fetchPostById, fetchReplies } = usePostStore();
   const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
@@ -43,8 +43,15 @@ export function PostPage() {
     }
   };
 
+  const handleReplySuccess = () => {
+    if (postId) {
+      // Just fetch the replies, no need to fetch the entire post
+      fetchReplies(postId);
+    }
+  };
+
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading && !post) {
       return (
         <div className="space-y-4">
           <PostCardSkeleton />
@@ -57,13 +64,17 @@ export function PostPage() {
       );
     }
 
-    if (error || !post) {
+    if (error && !post) {
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center">
           <p className="text-destructive mb-4">Failed to load post</p>
           <Button onClick={handleRefresh} variant="outline" className="rounded-full btn-hover-effect">Try again</Button>
         </div>
       );
+    }
+
+    if (!post) {
+      return null;
     }
 
     // Transform the API post data to match PostCard's expected format
@@ -119,7 +130,7 @@ export function PostPage() {
         {/* Reply form */}
         {isAuthenticated && (
           <div className="p-4">
-            <CreatePostForm placeholder="Write your reply..." replyToPostId={post.id} />
+            <CreatePostForm placeholder="Write your reply..." replyToPostId={post.id} onSuccess={handleReplySuccess} />
           </div>
         )}
         
@@ -130,7 +141,12 @@ export function PostPage() {
         </div>
         
         {/* Replies */}
-        {replies.length > 0 ? (
+        {isLoading ? (
+          <div className="space-y-4">
+            <PostCardSkeleton />
+            <PostCardSkeleton />
+          </div>
+        ) : replies.length > 0 ? (
           replies.map((reply) => (
             <PostCard key={reply.id} post={transformReply(reply)} isReply={true} />
           ))

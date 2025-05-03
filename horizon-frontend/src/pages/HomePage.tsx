@@ -32,6 +32,11 @@ export function HomePage() {
     fetchFeed().catch(() => setShowMockData(true));
   };
 
+  const handlePostSuccess = () => {
+    // Refresh the feed after creating a post
+    fetchFeed();
+  };
+
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
     // In a real app, you would fetch different data based on the active tab
@@ -97,7 +102,7 @@ export function HomePage() {
       <div className="border-b border-border/40">
         {isAuthenticated && (
           <div className="p-4">
-            <CreatePostForm />
+            <CreatePostForm onSuccess={handlePostSuccess} />
           </div>
         )}
       </div>
@@ -123,9 +128,9 @@ export function HomePage() {
             <PostCard key={post.id} post={{
               ...post,
               likes_count: post.like_count || 0,
-              replies_count: 0, // Assuming reply_count doesn't exist in the backend model
+              replies_count: post.reply_count || 0,
               reposts_count: post.repost_count || 0,
-              liked_by_user: false,
+              liked_by_user: post.has_liked || false,
               reposted_by_user: false,
               user: post.user ? {
                 id: post.user.id,

@@ -79,6 +79,7 @@ func main() {
 	postGroup.GET("", postController.GetPosts, authMiddleware)
 	postGroup.GET("/:id", postController.GetPostByID, authMiddleware)
 	postGroup.PUT("/:id", postController.UpdatePostContent, authMiddleware)
+	postGroup.DELETE("/:id", postController.DeletePost, authMiddleware)
 	postGroup.POST("/:id/like", postController.LikePost, authMiddleware)
 	postGroup.DELETE("/:id/like", postController.UnlikePost, authMiddleware)
 	postGroup.GET("/:id/replies", postController.GetPostReplies, authMiddleware)

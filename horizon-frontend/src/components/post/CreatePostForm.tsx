@@ -55,8 +55,12 @@ export function CreatePostForm({
     setIsSubmitting(true);
     
     try {
-      await createPost({
-        user_id: user.id,
+      // Remove any existing hyphens first, then format correctly
+      const cleanUserId = user.id.replace(/-/g, '');
+      const formattedUserId = cleanUserId.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+      
+      const newPost = await createPost({
+        user_id: formattedUserId,
         content,
         is_private: isPrivate,
         reply_to_post_id: replyToPostId,
@@ -67,13 +71,13 @@ export function CreatePostForm({
       setMediaUrls([]);
       setIsPrivate(false);
       
-      toast.success('Post created successfully!');
+      toast.success(replyToPostId ? 'Reply posted successfully!' : 'Post created successfully!');
       
       if (onSuccess) {
         onSuccess();
       }
     } catch (error) {
-      toast.error('Failed to create post. Please try again.');
+      toast.error(replyToPostId ? 'Failed to post reply. Please try again.' : 'Failed to create post. Please try again.');
       console.error('Failed to create post:', error);
     } finally {
       setIsSubmitting(false);
