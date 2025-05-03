@@ -155,3 +155,23 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	)
 	return i, err
 }
+
+const getUserStats = `-- name: GetUserStats :one
+SELECT 
+    (SELECT COUNT(*) FROM follows f WHERE f.followed_id = u.id AND f.is_accepted = true) as followers_count,
+    (SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id AND f.is_accepted = true) as following_count
+FROM users u
+WHERE u.id = $1 AND u.deleted_at IS NULL
+`
+
+type GetUserStatsRow struct {
+	FollowersCount int64 `json:"followers_count"`
+	FollowingCount int64 `json:"following_count"`
+}
+
+func (q *Queries) GetUserStats(ctx context.Context, id pgtype.UUID) (GetUserStatsRow, error) {
+	row := q.db.QueryRow(ctx, getUserStats, id)
+	var i GetUserStatsRow
+	err := row.Scan(&i.FollowersCount, &i.FollowingCount)
+	return i, err
+}

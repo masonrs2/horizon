@@ -238,30 +238,10 @@ func (c *PostController) GetPosts(ctx echo.Context) error {
 
 // GetUserPosts retrieves posts by a specific user
 func (c *PostController) GetUserPosts(ctx echo.Context) error {
-	// Get user ID from path parameter
-	userIdStr := ctx.Param("id")
-	if userIdStr == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "user ID is required")
-	}
-
-	// Parse user ID
-	var userId pgtype.UUID
-	if userIdStr == "me" {
-		// Get the current user's ID from context
-		userId = middleware.GetUserIDFromContext(ctx)
-		if !userId.Valid {
-			return echo.NewHTTPError(http.StatusUnauthorized, "user not authenticated")
-		}
-	} else {
-		// Parse the provided user ID
-		userUUID, err := uuid.Parse(userIdStr)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID format")
-		}
-		userId = pgtype.UUID{
-			Bytes: userUUID,
-			Valid: true,
-		}
+	// Get username from path parameter
+	username := ctx.Param("username")
+	if username == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "username is required")
 	}
 
 	// Get pagination parameters
@@ -286,9 +266,16 @@ func (c *PostController) GetUserPosts(ctx echo.Context) error {
 		}
 	}
 
+	// Create a context with the user ID
+	userID := middleware.GetUserIDFromContext(ctx)
+	reqCtx := context.WithValue(ctx.Request().Context(), "user_id", userID)
+
 	// Get posts from service
-	posts, err := c.service.GetUserPosts(ctx.Request().Context(), userId, limit, offset)
+	posts, err := c.service.GetUserPostsByUsername(reqCtx, username, limit, offset)
 	if err != nil {
+		if err.Error() == "user not found" {
+			return echo.NewHTTPError(http.StatusNotFound, "user not found")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user posts: "+err.Error())
 	}
 

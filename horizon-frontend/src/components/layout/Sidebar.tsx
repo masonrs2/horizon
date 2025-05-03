@@ -7,11 +7,14 @@ import {
   Bookmark, 
   User, 
   PenSquare,
-  LogOut
+  LogOut,
+  MoreHorizontal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export function Sidebar() {
   const location = useLocation();
@@ -36,7 +39,7 @@ export function Sidebar() {
     { 
       icon: User, 
       label: 'Profile', 
-      path: isAuthenticated && user ? `/profile/${user.username}` : '/profile',
+      path: isAuthenticated && user ? `/${user.username}` : '/profile',
       requiresAuth: true 
     },
   ];
@@ -91,17 +94,48 @@ export function Sidebar() {
       </nav>
 
       {isAuthenticated ? (
-        <Button 
-          className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
-          onClick={() => navigate('/compose')}
-        >
-          <PenSquare className="h-5 w-5" />
-          <span>Post</span>
-        </Button>
+        <>
+          <Button 
+            className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
+            onClick={() => navigate('/compose')}
+          >
+            <PenSquare className="h-5 w-5" />
+            <span>Post</span>
+          </Button>
+
+          {user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="mt-4 flex items-center gap-3 p-3 w-full rounded-full hover:bg-accent/5 transition-colors">
+                  <Avatar className="h-10 w-10">
+                    {user.avatar_url ? (
+                      <AvatarImage src={user.avatar_url} alt={user.display_name} />
+                    ) : (
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {user.display_name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div className="flex-1 text-left">
+                    <p className="font-medium leading-none">{user.display_name}</p>
+                    <p className="text-sm text-muted-foreground">@{user.username}</p>
+                  </div>
+                  <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[240px]">
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </>
       ) : (
         <Button 
           className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/register')}
         >
           <span>Sign up for Horizon</span>
         </Button>

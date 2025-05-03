@@ -38,6 +38,7 @@ func main() {
 	healthService := service.NewHealthService(queries)
 	userService := service.NewUserService(queries)
 	postService := service.NewPostService(queries, dbPool)
+	followService := service.NewFollowService(queries)
 
 	// Initialize auth provider
 	authProvider := auth.GetAuthProvider(queries, cfg)
@@ -46,7 +47,8 @@ func main() {
 	healthController := controller.NewHealthController(healthService)
 	userController := controller.NewUserController(userService)
 	postController := controller.NewPostController(postService)
-	authController := controller.NewAuthController(authProvider)
+	authController := controller.NewAuthController(authProvider, userService)
+	followController := controller.NewFollowController(followService, userService)
 
 	// Initialize Echo
 	e := echo.New()
@@ -72,6 +74,13 @@ func main() {
 	// User routes
 	userGroup := e.Group("/api/users")
 	userGroup.GET("/:username", userController.GetUserByUsername, authMiddleware)
+	userGroup.GET("/:username/posts", postController.GetUserPosts, authMiddleware)
+	userGroup.GET("/:username/followers", followController.GetFollowers, authMiddleware)
+	userGroup.GET("/:username/following", followController.GetFollowing, authMiddleware)
+	userGroup.GET("/:username/follow-status", followController.GetFollowStatus, authMiddleware)
+	userGroup.POST("/:username/follow", followController.FollowUser, authMiddleware)
+	userGroup.DELETE("/:username/follow", followController.UnfollowUser, authMiddleware)
+	userGroup.POST("/:username/accept-follow", followController.AcceptFollowRequest, authMiddleware)
 
 	// Post routes
 	postGroup := e.Group("/api/posts")
@@ -84,9 +93,6 @@ func main() {
 	postGroup.DELETE("/:id/like", postController.UnlikePost, authMiddleware)
 	postGroup.GET("/:id/replies", postController.GetPostReplies, authMiddleware)
 	postGroup.GET("/:id/has_liked", postController.HasLiked, authMiddleware)
-
-	// User post routes
-	userGroup.GET("/:id/posts", postController.GetUserPosts, authMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf(":%s", cfg.ServerPort)

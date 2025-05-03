@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"horizon-backend/internal/auth"
 	"horizon-backend/internal/middleware"
+	"horizon-backend/internal/service"
 	"horizon-backend/internal/validation"
 	"net/http"
 
@@ -13,12 +14,14 @@ import (
 // AuthController handles authentication-related requests
 type AuthController struct {
 	authProvider auth.AuthProvider
+	userService  *service.UserService
 }
 
 // NewAuthController creates a new auth controller
-func NewAuthController(authProvider auth.AuthProvider) *AuthController {
+func NewAuthController(authProvider auth.AuthProvider, userService *service.UserService) *AuthController {
 	return &AuthController{
 		authProvider: authProvider,
+		userService:  userService,
 	}
 }
 
@@ -243,25 +246,19 @@ func (c *AuthController) RefreshToken(ctx echo.Context) error {
 	})
 }
 
-// GetMe gets the authenticated user's profile
+// GetMe returns the current user's information
 func (c *AuthController) GetMe(ctx echo.Context) error {
-	// Get user from context (set by auth middleware)
-	user := middleware.GetUserFromContext(ctx)
-	if user == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+	// Get user ID from context
+	userID := middleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Unauthorized")
 	}
 
-	// Format UUID as string
-	userIDStr := hex.EncodeToString(user.ID.Bytes[:])
+	// Get user from user service
+	user, err := c.userService.GetUserByID(ctx.Request().Context(), userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get user information")
+	}
 
-	// Return user info
-	return ctx.JSON(http.StatusOK, map[string]interface{}{
-		"id":           userIDStr,
-		"username":     user.Username,
-		"email":        user.Email,
-		"display_name": user.DisplayName.String,
-		"avatar_url":   user.AvatarUrl.String,
-		"bio":          user.Bio.String,
-		"is_private":   user.IsPrivate,
-	})
+	return ctx.JSON(http.StatusOK, user)
 }

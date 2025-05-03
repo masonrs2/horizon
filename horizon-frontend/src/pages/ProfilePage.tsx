@@ -9,6 +9,8 @@ import { usePostStore } from '@/store/postStore';
 import { useAuthStore } from '@/store/authStore';
 import { CalendarDays, MapPin, Link as LinkIcon, User as UserIcon } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
+import { userApi, postApi } from '@/api';
+import { FollowListModal } from '@/components/ui/FollowListModal';
 
 interface ProfileData {
   id: string;
@@ -49,6 +51,10 @@ export function ProfilePage() {
   const { isAuthenticated, user } = useAuthStore();
   const isOwnProfile = isAuthenticated && user && user.username === username;
   const [posts, setPosts] = useState<ProfilePagePost[]>([]);
+  
+  // Add state for follow list modal
+  const [followListModalOpen, setFollowListModalOpen] = useState(false);
+  const [followListType, setFollowListType] = useState<'followers' | 'following'>('followers');
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -58,86 +64,54 @@ export function ProfilePage() {
       setError(null);
       
       try {
-        // In a real app, this would be an API call
-        // For now, we'll use mock data
-        setTimeout(() => {
-          const mockUserData: ProfileData = {
-            id: 'u1',
-            username: username,
-            display_name: username === 'devmaster' ? 'Alex Chen' : 
-                        username === 'sunsetlover' ? 'Sarah Jensen' : 
-                        username === 'futurist' ? 'Maya Johnson' : 
-                        `${username.charAt(0).toUpperCase()}${username.slice(1)}`,
-            avatar_url: username === 'devmaster' ? 'https://i.pravatar.cc/150?img=68' : 
-                       username === 'sunsetlover' ? 'https://i.pravatar.cc/150?img=32' : 
-                       username === 'futurist' ? 'https://i.pravatar.cc/150?img=47' : 
-                       '', 
-            bio: 'This is a sample bio for the user profile. In a real app, this would be the user\'s actual bio from the database.',
-            location: 'San Francisco, CA',
-            website: 'https://example.com',
-            created_at: '2023-01-15T00:00:00Z',
-            followers_count: 1024,
-            following_count: 512
-          };
+        // Fetch user data
+        const user = await userApi.getUserByUsername(username);
+        
+        // Transform user data to match ProfileData interface
+        const profileData: ProfileData = {
+          id: user.id,
+          username: user.username,
+          display_name: user.display_name || user.username,
+          avatar_url: user.avatar_url || '',
+          bio: user.bio || '',
+          location: '', // Not implemented yet
+          website: '', // Not implemented yet
+          created_at: user.created_at,
+          followers_count: user.followers_count,
+          following_count: user.following_count
+        };
 
-          // Create mock posts for the profile
-          const mockPosts: ProfilePagePost[] = [
-            {
-              id: 'p1',
-              content: 'Just thinking about how far we\'ve come with web development. Remember the days of table-based layouts? 😄 #WebDev #Nostalgia',
-              created_at: '2023-04-10T10:30:00Z',
-              likes_count: 45,
-              replies_count: 8,
-              reposts_count: 5,
-              liked_by_user: false,
-              reposted_by_user: false,
-              user: {
-                id: mockUserData.id,
-                username: mockUserData.username,
-                display_name: mockUserData.display_name,
-                avatar_url: mockUserData.avatar_url
-              }
-            },
-            {
-              id: 'p2',
-              content: 'Working on a new project with React and TypeScript. The type safety is *chef\'s kiss* 👩‍💻 #ReactJS #TypeScript',
-              created_at: '2023-04-05T15:20:00Z',
-              likes_count: 78,
-              replies_count: 12,
-              reposts_count: 10,
-              liked_by_user: true,
-              reposted_by_user: false,
-              user: {
-                id: mockUserData.id,
-                username: mockUserData.username,
-                display_name: mockUserData.display_name,
-                avatar_url: mockUserData.avatar_url
-              }
-            },
-            {
-              id: 'p3',
-              content: 'The sunset tonight was absolutely breathtaking! 🌅 Nature always finds a way to remind us of its beauty.',
-              created_at: '2023-03-28T19:45:00Z',
-              likes_count: 132,
-              replies_count: 18,
-              reposts_count: 24,
-              liked_by_user: false,
-              reposted_by_user: true,
-              user: {
-                id: mockUserData.id,
-                username: mockUserData.username,
-                display_name: mockUserData.display_name,
-                avatar_url: mockUserData.avatar_url
-              }
-            }
-          ];
-          
-          setUserData(mockUserData);
-          setPosts(mockPosts);
-          setIsLoading(false);
-        }, 1000);
-      } catch (err) {
-        setError('Failed to load user profile');
+        // Fetch user's posts
+        const userPosts = await postApi.getUserPosts(username);
+        
+        // Transform posts to match ProfilePagePost interface
+        const profilePosts: ProfilePagePost[] = userPosts.map(post => ({
+          id: post.id,
+          content: post.content,
+          created_at: post.created_at,
+          likes_count: post.like_count,
+          replies_count: post.reply_count,
+          reposts_count: post.repost_count,
+          liked_by_user: post.has_liked,
+          reposted_by_user: false, // Not implemented yet
+          user: {
+            id: post.user.id,
+            username: post.user.username,
+            display_name: post.user.display_name,
+            avatar_url: post.user.avatar_url
+          }
+        }));
+        
+        setUserData(profileData);
+        setPosts(profilePosts);
+        setIsLoading(false);
+      } catch (err: any) {
+        console.error('Failed to load profile:', err);
+        if (err.response?.status === 404) {
+          setError('User not found');
+        } else {
+          setError('Failed to load user profile');
+        }
         setIsLoading(false);
       }
     };
@@ -164,6 +138,11 @@ export function ProfilePage() {
     { id: 'likes', label: 'Likes' }
   ];
 
+  const handleFollowListClick = (type: 'followers' | 'following') => {
+    setFollowListType(type);
+    setFollowListModalOpen(true);
+  };
+
   const renderProfileHeader = () => {
     if (isLoading) {
       return (
@@ -186,7 +165,7 @@ export function ProfilePage() {
     if (error || !userData) {
       return (
         <div className="p-8 text-center border-b border-border/40">
-          <div className="text-destructive mb-4">Failed to load profile</div>
+          <div className="text-destructive mb-4">{error || 'Failed to load profile'}</div>
           <Button variant="outline" className="rounded-full btn-hover-effect" onClick={() => window.location.reload()}>
             Try again
           </Button>
@@ -259,14 +238,20 @@ export function ProfilePage() {
             </div>
             
             <div className="flex gap-4 text-sm">
-              <div>
+              <button
+                onClick={() => handleFollowListClick('following')}
+                className="hover:underline cursor-pointer"
+              >
                 <span className="font-semibold">{formatNumber(userData.following_count)}</span>{' '}
                 <span className="text-muted-foreground">Following</span>
-              </div>
-              <div>
+              </button>
+              <button
+                onClick={() => handleFollowListClick('followers')}
+                className="hover:underline cursor-pointer"
+              >
                 <span className="font-semibold">{formatNumber(userData.followers_count)}</span>{' '}
                 <span className="text-muted-foreground">Followers</span>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -275,62 +260,74 @@ export function ProfilePage() {
   };
 
   return (
-    <MainLayout
-      showTabs
-      tabs={tabs}
-      activeTab={activeTab}
-      onTabChange={handleTabChange}
-      showBackButton
-      title={userData?.display_name || username || 'Profile'}
-      rightContent={
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-card shadow-sm border border-border/40 hover:border-border/60 transition-colors duration-300">
-            <h2 className="font-semibold text-lg mb-2">Similar Profiles</h2>
-            <div className="space-y-4 mt-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <UserIcon className="h-5 w-5 text-primary" />
+    <>
+      <MainLayout
+        showTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        showBackButton
+        title={userData?.display_name || username || 'Profile'}
+        rightContent={
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-card shadow-sm border border-border/40 hover:border-border/60 transition-colors duration-300">
+              <h2 className="font-semibold text-lg mb-2">Similar Profiles</h2>
+              <div className="space-y-4 mt-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <UserIcon className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Similar User {i}</p>
+                        <p className="text-xs text-muted-foreground">@similar{i}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">Similar User {i}</p>
-                      <p className="text-xs text-muted-foreground">@similar{i}</p>
-                    </div>
+                    <Button size="sm" variant="outline" className="rounded-full btn-hover-effect">
+                      Follow
+                    </Button>
                   </div>
-                  <Button size="sm" variant="outline" className="rounded-full btn-hover-effect">
-                    Follow
-                  </Button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
+        }
+      >
+        {/* Profile Header */}
+        {renderProfileHeader()}
+        
+        {/* Profile Content */}
+        <div className="divide-y divide-border/40">
+          {isLoading ? (
+            // Loading state for posts
+            Array(3).fill(0).map((_, i) => (
+              <PostCardSkeleton key={i} />
+            ))
+          ) : posts.length > 0 ? (
+            // Show posts
+            posts.map(post => (
+              <PostCard key={post.id} post={post} />
+            ))
+          ) : (
+            // Empty state
+            <div className="p-8 text-center text-muted-foreground">
+              <p className="mb-2">No posts yet</p>
+              <p>When this user posts, their posts will show up here.</p>
+            </div>
+          )}
         </div>
-      }
-    >
-      {/* Profile Header */}
-      {renderProfileHeader()}
-      
-      {/* Profile Content */}
-      <div className="divide-y divide-border/40">
-        {isLoading ? (
-          // Loading state for posts
-          Array(3).fill(0).map((_, i) => (
-            <PostCardSkeleton key={i} />
-          ))
-        ) : posts.length > 0 ? (
-          // Show posts
-          posts.map(post => (
-            <PostCard key={post.id} post={post} />
-          ))
-        ) : (
-          // Empty state
-          <div className="p-8 text-center text-muted-foreground">
-            <p className="mb-2">No posts yet</p>
-            <p>When this user posts, their posts will show up here.</p>
-          </div>
-        )}
-      </div>
-    </MainLayout>
+      </MainLayout>
+
+      {/* Follow List Modal */}
+      {userData && (
+        <FollowListModal
+          isOpen={followListModalOpen}
+          onClose={() => setFollowListModalOpen(false)}
+          username={userData.username}
+          type={followListType}
+        />
+      )}
+    </>
   );
 } 

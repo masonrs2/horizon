@@ -26,22 +26,79 @@ func NewUserService(queries *db.Queries) *UserService {
 
 // GetUserByUsername gets a user by username
 func (s *UserService) GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
+	// Get user by username
 	dbUser, err := s.queries.GetUserByUsername(ctx, username)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
 		return nil, fmt.Errorf("error getting user by username: %w", err)
 	}
 
-	return dbUserToModelUser(dbUser), nil
+	// Get user stats
+	stats, err := s.queries.GetUserStats(ctx, dbUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user stats: %w", err)
+	}
+
+	// Convert to model user
+	user := &model.User{
+		ID:             dbUser.ID,
+		Username:       dbUser.Username,
+		Email:          dbUser.Email,
+		PasswordHash:   dbUser.PasswordHash,
+		DisplayName:    dbUser.DisplayName,
+		AvatarUrl:      dbUser.AvatarUrl,
+		Bio:            dbUser.Bio,
+		IsPrivate:      dbUser.IsPrivate,
+		CreatedAt:      dbUser.CreatedAt,
+		UpdatedAt:      dbUser.UpdatedAt,
+		DeletedAt:      dbUser.DeletedAt,
+		EmailVerified:  dbUser.EmailVerified,
+		LastLogin:      dbUser.LastLogin,
+		FollowersCount: stats.FollowersCount,
+		FollowingCount: stats.FollowingCount,
+	}
+
+	return user, nil
 }
 
 // GetUserByID gets a user by ID
 func (s *UserService) GetUserByID(ctx context.Context, id pgtype.UUID) (*model.User, error) {
 	dbUser, err := s.queries.GetUserByID(ctx, id)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
 		return nil, fmt.Errorf("error getting user by ID: %w", err)
 	}
 
-	return dbUserToModelUser(dbUser), nil
+	// Get user stats
+	stats, err := s.queries.GetUserStats(ctx, dbUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user stats: %w", err)
+	}
+
+	// Convert to model user
+	user := &model.User{
+		ID:             dbUser.ID,
+		Username:       dbUser.Username,
+		Email:          dbUser.Email,
+		PasswordHash:   dbUser.PasswordHash,
+		DisplayName:    dbUser.DisplayName,
+		AvatarUrl:      dbUser.AvatarUrl,
+		Bio:            dbUser.Bio,
+		IsPrivate:      dbUser.IsPrivate,
+		CreatedAt:      dbUser.CreatedAt,
+		UpdatedAt:      dbUser.UpdatedAt,
+		DeletedAt:      dbUser.DeletedAt,
+		EmailVerified:  dbUser.EmailVerified,
+		LastLogin:      dbUser.LastLogin,
+		FollowersCount: stats.FollowersCount,
+		FollowingCount: stats.FollowingCount,
+	}
+
+	return user, nil
 }
 
 // RegisterUser registers a new user
@@ -128,24 +185,37 @@ func (s *UserService) LoginUser(ctx context.Context, username, password string) 
 		return nil, fmt.Errorf("invalid username or password")
 	}
 
-	return dbUserToModelUser(dbUser), nil
+	// Get user stats
+	stats, err := s.queries.GetUserStats(ctx, dbUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user stats: %w", err)
+	}
+
+	// Convert to model user
+	user := dbUserToModelUser(dbUser)
+	user.FollowersCount = stats.FollowersCount
+	user.FollowingCount = stats.FollowingCount
+
+	return user, nil
 }
 
 // Helper function to convert db.User to model.User
 func dbUserToModelUser(dbUser db.User) *model.User {
 	return &model.User{
-		ID:            dbUser.ID,
-		Username:      dbUser.Username,
-		Email:         dbUser.Email,
-		PasswordHash:  dbUser.PasswordHash,
-		DisplayName:   dbUser.DisplayName,
-		AvatarUrl:     dbUser.AvatarUrl,
-		Bio:           dbUser.Bio,
-		IsPrivate:     dbUser.IsPrivate,
-		CreatedAt:     dbUser.CreatedAt,
-		UpdatedAt:     dbUser.UpdatedAt,
-		DeletedAt:     dbUser.DeletedAt,
-		EmailVerified: dbUser.EmailVerified,
-		LastLogin:     dbUser.LastLogin,
+		ID:             dbUser.ID,
+		Username:       dbUser.Username,
+		Email:          dbUser.Email,
+		PasswordHash:   dbUser.PasswordHash,
+		DisplayName:    dbUser.DisplayName,
+		AvatarUrl:      dbUser.AvatarUrl,
+		Bio:            dbUser.Bio,
+		IsPrivate:      dbUser.IsPrivate,
+		CreatedAt:      dbUser.CreatedAt,
+		UpdatedAt:      dbUser.UpdatedAt,
+		DeletedAt:      dbUser.DeletedAt,
+		EmailVerified:  dbUser.EmailVerified,
+		LastLogin:      dbUser.LastLogin,
+		FollowersCount: 0, // These will be set by the caller if needed
+		FollowingCount: 0,
 	}
 }

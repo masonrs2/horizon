@@ -108,7 +108,7 @@ export function RegisterForm() {
               <FormLabel>Username</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <AtSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
                     placeholder="sunsetlover" 
                     className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
@@ -130,7 +130,7 @@ export function RegisterForm() {
               <FormLabel>Display Name</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
                     placeholder="Sarah Jensen" 
                     className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
@@ -152,7 +152,7 @@ export function RegisterForm() {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
                     type="email" 
                     placeholder="sarah@example.com" 
@@ -175,7 +175,7 @@ export function RegisterForm() {
               <FormLabel>Password</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
                     type="password" 
                     placeholder="••••••••" 
@@ -198,7 +198,7 @@ export function RegisterForm() {
               <FormLabel>Confirm Password</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
                     type="password" 
                     placeholder="••••••••" 

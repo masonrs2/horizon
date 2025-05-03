@@ -9,8 +9,10 @@ import {
   LoginResponse
 } from '../types';
 
+export { userApi } from './userApi';
+
 // Create an axios instance with base URL and default headers
-const api = axios.create({
+export const api = axios.create({
   baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api',
   headers: {
     'Content-Type': 'application/json',
@@ -28,34 +30,6 @@ api.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
-
-// User API
-export const userApi = {
-  createUser: async (userData: CreateUserRequest): Promise<User> => {
-    const response = await api.post<User>('/users', userData);
-    return response.data;
-  },
-  
-  login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/auth/login', credentials);
-    return response;
-  },
-  
-  getUserMe: async () => {
-    const response = await api.get('/auth/me');
-    return response;
-  },
-  
-  getUserByUsername: async (username: string): Promise<User> => {
-    const response = await api.get<User>(`/users/${username}`);
-    return response.data;
-  },
-  
-  updateUser: async (userId: string, userData: Partial<User>): Promise<User> => {
-    const response = await api.put<User>(`/users/${userId}`, userData);
-    return response.data;
-  },
-};
 
 // Post API
 export const postApi = {

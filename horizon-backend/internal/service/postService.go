@@ -7,6 +7,7 @@ import (
 	"horizon-backend/internal/db"
 	"horizon-backend/internal/model"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -428,6 +429,85 @@ func (s *PostService) DeletePost(ctx context.Context, postId, userId pgtype.UUID
 	}
 
 	return nil
+}
+
+// GetUserPostsByUsername gets posts by a user's username
+func (s *PostService) GetUserPostsByUsername(ctx context.Context, username string, limit, offset int32) ([]*model.Post, error) {
+	// Start a transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// First get the user by username
+	user, err := qtx.GetUserByUsername(ctx, username)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("error getting user by username: %w", err)
+	}
+
+	// Then get their posts
+	posts, err := qtx.GetPostsByUserID(ctx, db.GetPostsByUserIDParams{
+		UserID: user.ID,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error getting user posts: %w", err)
+	}
+
+	// Convert to model posts
+	modelPosts := make([]*model.Post, len(posts))
+	for i, post := range posts {
+		// Get post stats
+		stats, err := qtx.GetPostStats(ctx, post.ID)
+		if err != nil {
+			return nil, fmt.Errorf("error getting post stats: %w", err)
+		}
+
+		// Check if the current user has liked the post
+		hasLiked := false
+		if userID, ok := ctx.Value("user_id").(pgtype.UUID); ok && userID.Valid {
+			hasLiked, err = qtx.HasUserLikedPost(ctx, db.HasUserLikedPostParams{
+				PostID: post.ID,
+				UserID: userID,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("error checking if user has liked post: %w", err)
+			}
+		}
+
+		modelPosts[i] = &model.Post{
+			ID:            post.ID,
+			UserID:        post.UserID,
+			Content:       post.Content,
+			CreatedAt:     post.CreatedAt,
+			UpdatedAt:     post.UpdatedAt,
+			DeletedAt:     post.DeletedAt,
+			IsPrivate:     post.IsPrivate,
+			ReplyToPostID: post.ReplyToPostID,
+			AllowReplies:  post.AllowReplies,
+			MediaUrls:     post.MediaUrls,
+			LikeCount:     int32(stats.LikeCount),
+			RepostCount:   int32(stats.RepostCount),
+			ReplyCount:    int32(stats.ReplyCount),
+			HasLiked:      hasLiked,
+			Username:      post.Username,
+			DisplayName:   post.DisplayName,
+			AvatarUrl:     post.AvatarUrl,
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return modelPosts, nil
 }
 
 // Helper function to convert db.Post to model.Post
