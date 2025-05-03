@@ -5,7 +5,7 @@ import { Heart, MessageCircle, Repeat2, Share } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 import { Post as ApiPost } from '@/types';
 
 interface PostCardPost {
@@ -146,7 +146,7 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
                 >
                   <MessageCircle className="h-4 w-4" />
                   {post.replies_count > 0 && (
-                    <span className="text-xs">{post.replies_count}</span>
+                    <span className="text-xs">{formatNumber(post.replies_count)}</span>
                   )}
                 </Button>
                 
@@ -163,7 +163,7 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
                 >
                   <Repeat2 className="h-4 w-4" />
                   {repostsCount > 0 && (
-                    <span className="text-xs">{repostsCount}</span>
+                    <span className="text-xs">{formatNumber(repostsCount)}</span>
                   )}
                 </Button>
                 
@@ -180,7 +180,7 @@ export function PostCard({ post: rawPost, isReply = false, hideActions = false }
                 >
                   <Heart className={cn("h-4 w-4", liked && "fill-current")} />
                   {likesCount > 0 && (
-                    <span className="text-xs">{likesCount}</span>
+                    <span className="text-xs">{formatNumber(likesCount)}</span>
                   )}
                 </Button>
                 

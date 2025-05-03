@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { usePostStore } from '@/store/postStore';
 import { useAuthStore } from '@/store/authStore';
 import { CalendarDays, MapPin, Link as LinkIcon, User as UserIcon } from 'lucide-react';
+import { formatNumber } from '@/lib/utils';
 
 interface ProfileData {
   id: string;
@@ -258,12 +259,12 @@ export function ProfilePage() {
             </div>
             
             <div className="flex gap-4 text-sm">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold">{userData.following_count}</span>
+              <div>
+                <span className="font-semibold">{formatNumber(userData.following_count)}</span>{' '}
                 <span className="text-muted-foreground">Following</span>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="font-semibold">{userData.followers_count}</span>
+              <div>
+                <span className="font-semibold">{formatNumber(userData.followers_count)}</span>{' '}
                 <span className="text-muted-foreground">Followers</span>
               </div>
             </div>

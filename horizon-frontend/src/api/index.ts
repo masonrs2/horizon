@@ -11,7 +11,7 @@ import {
 
 // Create an axios instance with base URL and default headers
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
+  baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -37,7 +37,7 @@ export const userApi = {
   },
   
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/login', credentials);
+    const response = await api.post<LoginResponse>('/auth/login', credentials);
     return response.data;
   },
   
@@ -65,7 +65,7 @@ export const postApi = {
   },
   
   getFeedPosts: async (): Promise<Post[]> => {
-    const response = await api.get<Post[]>('/feed');
+    const response = await api.get<Post[]>('/posts');
     return response.data;
   },
   

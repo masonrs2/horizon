@@ -54,6 +54,10 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  user: User;
-  token: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  email: string;
+  access_token: string;
+  refresh_token: string;
 } 

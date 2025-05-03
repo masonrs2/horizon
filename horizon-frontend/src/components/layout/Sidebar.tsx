@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
   Search, 
@@ -6,25 +6,39 @@ import {
   Mail, 
   Bookmark, 
   User, 
-  PenSquare
+  PenSquare,
+  LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/authStore';
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuthStore();
 
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
     { icon: Search, label: 'Explore', path: '/explore' },
-    { icon: Bell, label: 'Notifications', path: '/notifications' },
-    { icon: Mail, label: 'Messages', path: '/messages' },
-    { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks' },
-    { icon: User, label: 'Profile', path: '/profile' },
+    { icon: Bell, label: 'Notifications', path: '/notifications', requiresAuth: true },
+    { icon: Mail, label: 'Messages', path: '/messages', requiresAuth: true },
+    { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks', requiresAuth: true },
+    { 
+      icon: User, 
+      label: 'Profile', 
+      path: isAuthenticated && user ? `/profile/${user.username}` : '/profile',
+      requiresAuth: true 
+    },
   ];
 
   return (
@@ -36,7 +50,9 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1">
-        {navItems.map((item) => (
+        {navItems
+          .filter(item => !item.requiresAuth || isAuthenticated)
+          .map((item) => (
           <Link 
             key={item.path}
             to={item.path}
@@ -54,14 +70,42 @@ export function Sidebar() {
             <span>{item.label}</span>
           </Link>
         ))}
+
+        {isAuthenticated ? (
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 text-foreground hover:bg-destructive/10 hover:text-destructive w-full text-left btn-hover-effect"
+          >
+            <LogOut className="h-6 w-6" />
+            <span>Logout</span>
+          </button>
+        ) : (
+          <Link
+            to="/login"
+            className="flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 text-foreground hover:bg-primary/10 hover:text-primary w-full text-left btn-hover-effect"
+          >
+            <LogOut className="h-6 w-6 rotate-180" />
+            <span>Login</span>
+          </Link>
+        )}
       </nav>
 
-      <Button 
-        className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
-      >
-        <PenSquare className="h-5 w-5" />
-        <span>Post</span>
-      </Button>
+      {isAuthenticated ? (
+        <Button 
+          className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
+          onClick={() => navigate('/compose')}
+        >
+          <PenSquare className="h-5 w-5" />
+          <span>Post</span>
+        </Button>
+      ) : (
+        <Button 
+          className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
+          onClick={() => navigate('/login')}
+        >
+          <span>Sign up for Horizon</span>
+        </Button>
+      )}
     </div>
   );
 } 

@@ -22,9 +22,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await userApi.login(credentials);
-      localStorage.setItem('token', response.token);
+      localStorage.setItem('token', response.access_token);
       set({ 
-        user: response.user, 
+        user: {
+          id: response.user_id,
+          username: response.username,
+          display_name: response.display_name,
+          email: response.email,
+          avatar_url: ''
+        }, 
         isAuthenticated: true, 
         isLoading: false 
       });
