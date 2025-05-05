@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -20,6 +21,7 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuthStore();
+  const { unreadCount } = useNotificationStore();
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -27,13 +29,19 @@ export function Sidebar() {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/login');
   };
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
     { icon: Search, label: 'Explore', path: '/explore' },
-    { icon: Bell, label: 'Notifications', path: '/notifications', requiresAuth: true },
+    { 
+      icon: Bell, 
+      label: 'Notifications', 
+      path: '/notifications', 
+      requiresAuth: true,
+      badge: unreadCount
+    },
     { icon: Mail, label: 'Messages', path: '/messages', requiresAuth: true },
     { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks', requiresAuth: true },
     { 
@@ -47,32 +55,41 @@ export function Sidebar() {
   return (
     <div className="fixed left-0 top-0 h-screen w-[275px] border-r border-border hidden md:flex flex-col p-4 pl-8 bg-gradient-to-b from-background to-background/95">
       <div className="mb-6 px-2">
-        <h1 className="text-2xl font-bold text-transparent bg-clip-text sunset-gradient">
+        <Link to="/" className="text-2xl font-bold text-transparent bg-clip-text sunset-gradient">
           Horizon
-        </h1>
+        </Link>
       </div>
 
       <nav className="flex-1 space-y-1">
         {navItems
           .filter(item => !item.requiresAuth || isAuthenticated)
           .map((item) => (
-          <Link 
-            key={item.path}
-            to={item.path}
-            className={cn(
-              "flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 ml-2",
-              isActive(item.path) 
-                ? "font-semibold text-primary bg-primary/10" 
-                : "text-foreground hover:bg-accent/5 btn-hover-effect"
-            )}
-          >
-            <item.icon className={cn(
-              "h-6 w-6",
-              isActive(item.path) && "text-primary"
-            )} />
-            <span>{item.label}</span>
-          </Link>
-        ))}
+            <Link 
+              key={item.path}
+              to={item.path}
+              className={cn(
+                "flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 ml-2",
+                isActive(item.path) 
+                  ? "font-semibold text-primary bg-primary/10" 
+                  : "text-foreground hover:bg-accent/5 btn-hover-effect"
+              )}
+            >
+              <div className="relative inline-flex">
+                <item.icon className={cn(
+                  "h-6 w-6",
+                  isActive(item.path) && "text-primary"
+                )} />
+                {isAuthenticated && item.badge && item.badge > 0 && (
+                  <div className="absolute -right-3 -top-2.5 min-w-[20px] h-5 rounded-full bg-red-500 flex items-center justify-center px-1">
+                    <span className="text-[11px] font-medium leading-none text-white">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <span>{item.label}</span>
+            </Link>
+          ))}
 
         {isAuthenticated ? (
           <button
@@ -135,7 +152,7 @@ export function Sidebar() {
       ) : (
         <Button 
           className="mt-4 rounded-full w-full py-6 text-lg gap-2 btn-hover-effect sunset-gradient"
-          onClick={() => navigate('/register')}
+          onClick={() => navigate('/signup')}
         >
           <span>Sign up for Horizon</span>
         </Button>

@@ -108,7 +108,7 @@ type GetNotificationsRow struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt         pgtype.Timestamptz `json:"deleted_at"`
-	ActorUsername     string             `json:"actor_username"`
+	ActorUsername     pgtype.Text        `json:"actor_username"`
 	ActorDisplayName  pgtype.Text        `json:"actor_display_name"`
 	ActorAvatarUrl    pgtype.Text        `json:"actor_avatar_url"`
 	PostContent       pgtype.Text        `json:"post_content"`

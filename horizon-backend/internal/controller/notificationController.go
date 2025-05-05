@@ -1,9 +1,14 @@
 package controller
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
+	hmiddleware "horizon-backend/internal/middleware"
+	"horizon-backend/internal/model"
 	"horizon-backend/internal/service"
 	"horizon-backend/internal/util"
 
@@ -22,10 +27,10 @@ func NewNotificationController(notificationService *service.NotificationService)
 
 // GetNotifications handles GET /api/notifications
 func (c *NotificationController) GetNotifications(ctx echo.Context) error {
-	// Get user ID from context
-	userID, err := util.GetUserIDFromContext(ctx.Request().Context())
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	// Get user ID from context using the middleware helper
+	userID := hmiddleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized: invalid user ID in context")
 	}
 
 	// Get pagination params
@@ -34,18 +39,37 @@ func (c *NotificationController) GetNotifications(ctx echo.Context) error {
 	if limitStr := ctx.QueryParam("limit"); limitStr != "" {
 		if l, err := strconv.ParseInt(limitStr, 10, 32); err == nil {
 			limit = int32(l)
+		} else {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid limit parameter: %v", err))
 		}
 	}
 	if offsetStr := ctx.QueryParam("offset"); offsetStr != "" {
 		if o, err := strconv.ParseInt(offsetStr, 10, 32); err == nil {
 			offset = int32(o)
+		} else {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid offset parameter: %v", err))
 		}
 	}
 
 	// Get notifications
-	notifications, err := c.notificationService.GetNotifications(ctx.Request().Context(), userID, limit, offset)
+	notifications, err := c.notificationService.GetNotifications(ctx.Request().Context(), userID.Bytes, limit, offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get notifications")
+		// Log the detailed error
+		log.Printf("Error getting notifications: %v", err)
+
+		// Check for specific error types and return appropriate status codes
+		if strings.Contains(err.Error(), "invalid notification ID") ||
+			strings.Contains(err.Error(), "invalid user ID") ||
+			strings.Contains(err.Error(), "invalid actor ID") {
+			return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("data integrity error: %v", err))
+		}
+
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("failed to get notifications: %v", err))
+	}
+
+	// Always return a JSON array, even if empty
+	if notifications == nil {
+		notifications = []*model.Notification{}
 	}
 
 	return ctx.JSON(http.StatusOK, notifications)
@@ -53,14 +77,14 @@ func (c *NotificationController) GetNotifications(ctx echo.Context) error {
 
 // GetUnreadCount handles GET /api/notifications/unread-count
 func (c *NotificationController) GetUnreadCount(ctx echo.Context) error {
-	// Get user ID from context
-	userID, err := util.GetUserIDFromContext(ctx.Request().Context())
-	if err != nil {
+	// Get user ID from context using the middleware helper
+	userID := hmiddleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
 	// Get unread count
-	count, err := c.notificationService.GetUnreadCount(ctx.Request().Context(), userID)
+	count, err := c.notificationService.GetUnreadCount(ctx.Request().Context(), userID.Bytes)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get unread count")
 	}

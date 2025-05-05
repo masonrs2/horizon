@@ -20,9 +20,26 @@ export const api = axios.create({
   },
 });
 
+// Flag to track if we're currently refreshing the token
+let isRefreshing = false;
+// Queue of requests waiting for token refresh
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+// Function to add request to queue
+const addRefreshSubscriber = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback);
+};
+
+// Function to notify all subscribers with new token
+const onRefreshed = (token: string) => {
+  refreshSubscribers.forEach(callback => callback(token));
+  refreshSubscribers = [];
+};
+
 // Add a request interceptor to include the auth token in requests
 api.interceptors.request.use(
   (config) => {
+    // Always get the latest token from localStorage for each request
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -32,94 +49,62 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Flag to track if we're currently refreshing the token
-let isRefreshing = false;
-// Store of waiting requests
-let waitingRequests: Array<{
-  resolve: (value: unknown) => void;
-  reject: (error: any) => void;
-  config: any;
-}> = [];
-
-// Function to process waiting requests
-const processWaitingRequests = (error: any, token: string | null = null) => {
-  waitingRequests.forEach(({ resolve, reject, config }) => {
-    if (!token) {
-      reject(error);
-    } else {
-      config.headers.Authorization = `Bearer ${token}`;
-      resolve(api(config));
-    }
-  });
-  waitingRequests = [];
-};
-
-// Add a response interceptor to handle auth errors
+// Add a response interceptor to handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If the error is 401 and we haven't tried to refresh the token yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      // If we're already refreshing, add this request to the waiting queue
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          waitingRequests.push({ resolve, reject, config: originalRequest });
-        });
-      }
+    // If the error is not 401 or the request has already been retried, reject
+    if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
 
-      originalRequest._retry = true;
+    // Mark this request as retried
+    originalRequest._retry = true;
+
+    if (!isRefreshing) {
       isRefreshing = true;
 
       try {
         // Try to refresh the token
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          // No refresh token available, force logout
-          useAuthStore.getState().logout();
-          processWaitingRequests(error);
+        const refreshed = await useAuthStore.getState().refreshToken();
+        
+        if (!refreshed) {
+          // If refresh failed, reject all waiting requests
+          refreshSubscribers = [];
           return Promise.reject(error);
         }
 
-        // Make the refresh token request using a new axios instance
-        // to avoid interceptors and potential infinite loops
-        const refreshResponse = await axios.post<LoginResponse>(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/auth/refresh`,
-          { refresh_token: refreshToken },
-          { 
-            headers: { 'Content-Type': 'application/json' },
-            // Add a longer timeout for refresh requests
-            timeout: 10000
-          }
-        );
+        // Get the new token and ensure it's the latest one from localStorage
+        const newToken = localStorage.getItem('access_token');
+        if (!newToken) {
+          return Promise.reject(error);
+        }
 
-        const { access_token, refresh_token } = refreshResponse.data;
+        // Small delay to ensure token is fully propagated
+        await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Update tokens in localStorage
-        localStorage.setItem('access_token', access_token);
-        localStorage.setItem('refresh_token', refresh_token);
-
-        // Update the Authorization header for future requests
-        api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-
-        // Process any requests that were waiting
-        processWaitingRequests(null, access_token);
-
-        // Retry the original request with the new token
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        // Notify all waiting requests with the latest token
+        onRefreshed(newToken);
+        
+        // Update the failed request's auth header with the latest token
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        
+        // Retry the failed request
         return api(originalRequest);
-      } catch (refreshError) {
-        // If refresh token fails, logout the user and reject all waiting requests
-        useAuthStore.getState().logout();
-        processWaitingRequests(refreshError);
-        return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
 
-    return Promise.reject(error);
+    // If we're already refreshing, add this request to the queue
+    return new Promise(resolve => {
+      addRefreshSubscriber(token => {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        resolve(api(originalRequest));
+      });
+    });
   }
 );
 

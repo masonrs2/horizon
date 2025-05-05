@@ -3,19 +3,50 @@ import { Home, Search, Bell, Mail, PenSquare, User, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/authStore';
+import { useEffect } from 'react';
+import { useNotificationStore } from '@/store/notificationStore';
 
 export function MobileNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuthStore();
+  const { unreadCount, loadUnreadCount, resetCount } = useNotificationStore();
+
+  useEffect(() => {
+    // Reset or load count when auth state changes
+    if (!isAuthenticated) {
+      resetCount();
+    } else {
+      loadUnreadCount();
+    }
+  }, [isAuthenticated, loadUnreadCount, resetCount]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Poll for new notifications every minute
+    const interval = setInterval(loadUnreadCount, 60000);
+
+    // Listen for notification updates
+    const handleNotificationUpdate = () => {
+      loadUnreadCount();
+    };
+    window.addEventListener('notifications-updated', handleNotificationUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notifications-updated', handleNotificationUpdate);
+    };
+  }, [isAuthenticated, loadUnreadCount]);
   
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
   const handleLogout = () => {
+    resetCount(); // Reset notification count before logout
     logout();
-    navigate('/');
+    navigate('/login');
   };
   
   const navItems = [
@@ -33,7 +64,8 @@ export function MobileNav() {
       icon: Bell,
       path: '/notifications',
       label: 'Notifications',
-      requiresAuth: true
+      requiresAuth: true,
+      badge: isAuthenticated && unreadCount > 0 ? unreadCount : undefined
     },
     {
       icon: User,
@@ -57,7 +89,7 @@ export function MobileNav() {
       ) : (
         <Button 
           className="md:hidden fixed bottom-20 right-4 h-14 px-6 rounded-full z-50 shadow-lg sunset-gradient btn-hover-effect border border-primary/20"
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/signup')}
         >
           Sign up
         </Button>
@@ -79,10 +111,19 @@ export function MobileNav() {
                   ? "text-primary" 
                   : "text-muted-foreground hover:text-foreground"
               )}>
-                <item.icon className={cn(
-                  "h-6 w-6 mb-1",
-                  isActive(item.path) && "stroke-[2.5px]"
-                )} />
+                <div className="relative inline-flex">
+                  <item.icon className={cn(
+                    "h-6 w-6 mb-1",
+                    isActive(item.path) && "stroke-[2.5px]"
+                  )} />
+                  {item.badge !== undefined && (
+                    <div className="absolute -right-3 -top-2.5 min-w-[20px] h-5 rounded-full bg-primary flex items-center justify-center px-1">
+                      <span className="text-[11px] font-medium leading-none text-primary-foreground">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <span className="text-xs">{item.label}</span>
               </div>
             </Link>

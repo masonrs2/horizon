@@ -10,12 +10,15 @@ import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { MainLayout } from '../components/layout/MainLayout';
+import { RightSidebar } from '../components/layout/RightSidebar';
 import { useAuthStore } from '../store/authStore';
+import { useNotificationStore } from '../store/notificationStore';
 
 const NOTIFICATIONS_PER_PAGE = 20;
 
 export default function NotificationsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuthStore();
+  const { loadUnreadCount } = useNotificationStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
@@ -69,6 +72,11 @@ export default function NotificationsPage() {
     try {
       await notificationApi.markAllAsRead();
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      // Refresh the unread count
+      loadUnreadCount();
+      // Trigger a refresh of the unread count in the navbar
+      const event = new CustomEvent('notifications-updated');
+      window.dispatchEvent(event);
       toast.success('All notifications marked as read');
     } catch (error: any) {
       // Only show error if it's not a 401
@@ -88,6 +96,11 @@ export default function NotificationsPage() {
       setNotifications(prev =>
         prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
       );
+      // Refresh the unread count
+      loadUnreadCount();
+      // Trigger a refresh of the unread count in the navbar
+      const event = new CustomEvent('notifications-updated');
+      window.dispatchEvent(event);
     } catch (error: any) {
       // Only show error if it's not a 401
       if (error.response?.status !== 401) {
@@ -128,7 +141,7 @@ export default function NotificationsPage() {
   // Wait for auth check to complete
   if (authLoading) {
     return (
-      <MainLayout title="Notifications">
+      <MainLayout title="Notifications" rightContent={<RightSidebar />}>
         <div className="flex h-[200px] items-center justify-center">
           <Spinner />
         </div>
@@ -187,43 +200,41 @@ export default function NotificationsPage() {
 
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <Link
-                  to={`/profile/${notification.actor_username}`}
-                  className="flex items-center gap-2 font-medium hover:underline"
-                >
-                  <Avatar
-                    src={notification.actor_avatar_url || undefined}
-                    alt={notification.actor_username}
-                    size="sm"
-                  />
-                  <span>{notification.actor_display_name || notification.actor_username}</span>
-                </Link>
+                {notification.actor_username ? (
+                  <Link
+                    to={`/profile/${notification.actor_username}`}
+                    className="flex items-center gap-2 font-medium hover:underline"
+                  >
+                    <Avatar
+                      src={notification.actor_avatar_url || undefined}
+                      alt={notification.actor_username}
+                      size="sm"
+                    />
+                    <span>{notification.actor_display_name || notification.actor_username}</span>
+                  </Link>
+                ) : (
+                  <span>A user</span>
+                )}
                 <span className="text-sm text-muted-foreground">
                   {getNotificationText(notification)}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                 </span>
               </div>
 
               {notification.post_content && (
                 <Link
                   to={`/post/${notification.post_id}`}
-                  className="text-sm text-muted-foreground hover:text-foreground"
+                  className="rounded bg-muted/5 p-2 text-sm text-muted-foreground hover:bg-muted/10"
                 >
                   {notification.post_content}
                 </Link>
               )}
-
-              <span className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-              </span>
             </div>
           </div>
         ))}
-
-        {hasMore && !error && (
-          <div ref={observerRef} className="flex justify-center p-4">
-            <Spinner />
-          </div>
-        )}
+        <div ref={observerRef} className="h-4" />
       </div>
     );
   };
@@ -231,12 +242,16 @@ export default function NotificationsPage() {
   return (
     <MainLayout
       title="Notifications"
+      showBackButton
       rightContent={
-        notifications.length > 0 && (
-          <Button variant="outline" size="sm" onClick={handleMarkAllAsRead}>
-            Mark all as read
-          </Button>
-        )
+        <div className="space-y-4">
+          {notifications.some(n => !n.read) && (
+            <Button onClick={handleMarkAllAsRead} variant="outline" className="w-full">
+              Mark all as read
+            </Button>
+          )}
+          <RightSidebar />
+        </div>
       }
     >
       <NotificationsList />

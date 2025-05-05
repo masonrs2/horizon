@@ -1,5 +1,6 @@
 import { api } from './index';
 import { CreateUserRequest, LoginRequest, LoginResponse, User, FollowResponse } from '../types';
+import { useAuthStore } from '../store/authStore';
 
 interface FollowUser {
   id: string;
@@ -27,10 +28,29 @@ export const userApi = {
   },
   
   refreshToken: async (refreshToken: string): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/auth/refresh', {
-      refresh_token: refreshToken
-    });
-    return response;
+    try {
+      const response = await api.post<LoginResponse>('/auth/refresh', {
+        refresh_token: refreshToken
+      });
+      
+      if (!response.data.access_token || !response.data.refresh_token) {
+        throw new Error('Invalid refresh token response');
+      }
+
+      // Store new tokens in localStorage
+      localStorage.setItem('access_token', response.data.access_token);
+      localStorage.setItem('refresh_token', response.data.refresh_token);
+
+      return response;
+    } catch (error: any) {
+      // If it's a 401 or network error, clear tokens and logout
+      if (error.response?.status === 401 || !error.response) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        useAuthStore.getState().logout();
+      }
+      throw error;
+    }
   },
   
   getCurrentUser: async (): Promise<User> => {

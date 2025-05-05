@@ -26,9 +26,9 @@ type Notification struct {
 	DeletedAt    pgtype.Timestamptz `json:"deleted_at,omitempty"`
 
 	// Additional fields from joins
-	ActorUsername     string      `json:"actor_username"`
-	ActorDisplayName  pgtype.Text `json:"actor_display_name"`
-	ActorAvatarURL    pgtype.Text `json:"actor_avatar_url"`
+	ActorUsername     string      `json:"actor_username,omitempty"`
+	ActorDisplayName  pgtype.Text `json:"actor_display_name,omitempty"`
+	ActorAvatarURL    pgtype.Text `json:"actor_avatar_url,omitempty"`
 	PostContent       pgtype.Text `json:"post_content,omitempty"`
 	ParentPostContent pgtype.Text `json:"parent_post_content,omitempty"`
 }

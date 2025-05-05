@@ -180,14 +180,15 @@ func (p *LocalAuthProvider) GetUserFromToken(ctx context.Context, token string) 
 // generateAccessToken generates a short-lived access token
 func (p *LocalAuthProvider) generateAccessToken(userID pgtype.UUID) (string, error) {
 	// Create a unique identifier for the userID
-	// This is a simplified approach - in production you'd use proper UUID formatting
 	idStr := fmt.Sprintf("%x", userID.Bytes)
 
 	// Create claims with expiration (15 minutes)
+	// Use time.Now().Add(-1 * time.Second) for IssuedAt to provide a small buffer
+	now := time.Now()
 	claims := jwt.RegisteredClaims{
 		Subject:   idStr,
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+		IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)), // 1 second buffer
+		ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
 	}
 
 	// Create token
@@ -200,14 +201,15 @@ func (p *LocalAuthProvider) generateAccessToken(userID pgtype.UUID) (string, err
 // generateRefreshToken generates a long-lived refresh token
 func (p *LocalAuthProvider) generateRefreshToken(userID pgtype.UUID) (string, error) {
 	// Create a unique identifier for the userID
-	// This is a simplified approach - in production you'd use proper UUID formatting
 	idStr := fmt.Sprintf("%x", userID.Bytes)
 
 	// Create claims with expiration (7 days)
+	// Use time.Now().Add(-1 * time.Second) for IssuedAt to provide a small buffer
+	now := time.Now()
 	claims := jwt.RegisteredClaims{
 		Subject:   idStr,
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
+		IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)), // 1 second buffer
+		ExpiresAt: jwt.NewNumericDate(now.Add(7 * 24 * time.Hour)),
 	}
 
 	// Create token
@@ -219,8 +221,9 @@ func (p *LocalAuthProvider) generateRefreshToken(userID pgtype.UUID) (string, er
 
 // parseToken parses and validates a JWT token
 func (p *LocalAuthProvider) parseToken(tokenString string, isRefresh bool) (pgtype.UUID, error) {
-	// Parse token
-	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+	// Parse token with clock skew tolerance
+	parser := jwt.NewParser(jwt.WithLeeway(2 * time.Second)) // Allow 2 seconds of clock skew
+	token, err := parser.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Validate signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])

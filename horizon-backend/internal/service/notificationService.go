@@ -73,12 +73,23 @@ func (s *NotificationService) GetNotifications(ctx context.Context, userID [16]b
 		Offset: offset,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get notifications: %w", err)
+		return nil, fmt.Errorf("database error getting notifications: %w", err)
 	}
 
 	// Convert to model notifications
 	notifications := make([]*model.Notification, len(dbNotifs))
 	for i, dbNotif := range dbNotifs {
+		// Check if required fields are valid
+		if !dbNotif.ID.Valid {
+			return nil, fmt.Errorf("invalid notification ID at index %d", i)
+		}
+		if !dbNotif.UserID.Valid {
+			return nil, fmt.Errorf("invalid user ID at index %d", i)
+		}
+		if !dbNotif.ActorID.Valid {
+			return nil, fmt.Errorf("invalid actor ID at index %d", i)
+		}
+
 		notifications[i] = &model.Notification{
 			ID:                dbNotif.ID,
 			UserID:            dbNotif.UserID,
@@ -90,7 +101,7 @@ func (s *NotificationService) GetNotifications(ctx context.Context, userID [16]b
 			CreatedAt:         dbNotif.CreatedAt,
 			UpdatedAt:         dbNotif.UpdatedAt,
 			DeletedAt:         dbNotif.DeletedAt,
-			ActorUsername:     dbNotif.ActorUsername,
+			ActorUsername:     dbNotif.ActorUsername.String,
 			ActorDisplayName:  dbNotif.ActorDisplayName,
 			ActorAvatarURL:    dbNotif.ActorAvatarUrl,
 			PostContent:       dbNotif.PostContent,

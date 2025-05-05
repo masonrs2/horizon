@@ -17,6 +17,10 @@ export interface Notification {
   parent_post_content?: string;
 }
 
+interface UnreadCountResponse {
+  count: number;
+}
+
 export const notificationApi = {
   // Get notifications
   getNotifications: async (limit: number = 20, offset: number = 0): Promise<Notification[]> => {
@@ -24,6 +28,10 @@ export const notificationApi = {
       const response = await api.get<Notification[]>('/notifications', {
         params: { limit, offset }
       });
+      // If we get a 204 No Content, return an empty array
+      if (response.status === 204) {
+        return [];
+      }
       return response.data;
     } catch (error) {
       // Let the global error handler handle 401s for token refresh
@@ -34,10 +42,14 @@ export const notificationApi = {
   // Get unread notification count
   getUnreadCount: async (): Promise<number> => {
     try {
-      const response = await api.get<{ count: number }>('/notifications/unread-count');
-      return response.data.count;
+      console.log('Fetching unread count...'); // Debug log
+      const response = await api.get<UnreadCountResponse>('/notifications/unread-count');
+      console.log('Unread count response:', response.data); // Debug log
+      const count = response.data.count;
+      console.log('Extracted count:', count); // Debug log
+      return count;
     } catch (error) {
-      // Let the global error handler handle 401s for token refresh
+      console.error('Error fetching unread count:', error); // Debug log
       throw error;
     }
   },

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { User, LoginRequest } from '../types';
 import { userApi } from '../api';
+import { useNotificationStore } from './notificationStore';
 
 interface AuthState {
   user: User | null;
@@ -11,12 +12,13 @@ interface AuthState {
   logout: () => void;
   checkAuth: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
+  setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  isAuthenticated: false,
-  isLoading: false,
+  isAuthenticated: !!localStorage.getItem('access_token'),
+  isLoading: true,
   error: null,
 
   login: async (credentials: LoginRequest) => {
@@ -38,6 +40,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         user,
         isLoading: false,
       });
+
+      // Load initial notification count after successful login
+      useNotificationStore.getState().loadUnreadCount();
     } catch (error) {
       set({
         isAuthenticated: false,
@@ -54,12 +59,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
 
+    // Reset notification count
+    useNotificationStore.getState().resetCount();
+
     // Update state
     set({
       user: null,
       isAuthenticated: false,
       error: null,
     });
+
+    // Dispatch an event to notify components about logout
+    window.dispatchEvent(new Event('user-logged-out'));
   },
 
   checkAuth: async () => {
@@ -69,6 +80,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const token = localStorage.getItem('access_token');
       if (!token) {
         set({ isLoading: false });
+        useNotificationStore.getState().resetCount();
         return;
       }
 
@@ -79,6 +91,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         user,
         isLoading: false,
       });
+
+      // Load notification count after successful auth check
+      useNotificationStore.getState().loadUnreadCount();
     } catch (error) {
       // If the error is 401, try to refresh the token
       if (error.response?.status === 401) {
@@ -92,6 +107,8 @@ export const useAuthStore = create<AuthState>((set) => ({
               user,
               isLoading: false,
             });
+            // Load notification count after successful token refresh
+            useNotificationStore.getState().loadUnreadCount();
             return;
           } catch (error) {
             console.error('Failed to get user info after token refresh:', error);
@@ -105,6 +122,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: null,
         isLoading: false,
       });
+      useNotificationStore.getState().resetCount();
     }
   },
 
@@ -112,20 +130,36 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
+        set({ isAuthenticated: false, user: null });
+        useNotificationStore.getState().resetCount();
         return false;
       }
 
       const response = await userApi.refreshToken(refreshToken);
-      const { access_token, refresh_token } = response.data;
+      if (!response.data.access_token || !response.data.refresh_token) {
+        set({ isAuthenticated: false, user: null });
+        useNotificationStore.getState().resetCount();
+        return false;
+      }
 
-      localStorage.setItem('access_token', access_token);
-      localStorage.setItem('refresh_token', refresh_token);
-
+      // Update tokens in localStorage
+      localStorage.setItem('access_token', response.data.access_token);
+      localStorage.setItem('refresh_token', response.data.refresh_token);
+      set({ isAuthenticated: true });
       return true;
     } catch (error) {
-      console.error('Failed to refresh token:', error);
-      useAuthStore.getState().logout();
+      set({ isAuthenticated: false, user: null });
+      useNotificationStore.getState().resetCount();
       return false;
     }
+  },
+
+  // Helper function to update user info
+  setUser: (user: User) => {
+    useAuthStore.setState({
+      user,
+      isAuthenticated: true,
+      isLoading: false,
+    });
   },
 }));
