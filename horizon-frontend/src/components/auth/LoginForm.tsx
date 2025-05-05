@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, AtSign } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 
 // Form validation schema
 const formSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
+  usernameOrEmail: z.string().min(1, 'Username or email is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -27,134 +27,85 @@ type FormData = z.infer<typeof formSchema>;
 
 export function LoginForm() {
   const navigate = useNavigate();
-  const { login, error: authError } = useAuthStore();
+  const login = useAuthStore((state) => state.login);
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
-  
-  // Initialize form
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      username: '',
+      usernameOrEmail: '',
       password: '',
     },
   });
-  
+
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
-    setErrors([]);
-    
     try {
       await login(data);
-      navigate('/');
-      toast.success('Welcome back!');
+      toast.success('Successfully logged in');
+      navigate('/feed');
     } catch (error: any) {
-      // Handle the new error format
-      if (error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else if (error.response?.data?.message) {
-        setErrors([error.response.data.message]);
-      } else {
-        setErrors(['An unexpected error occurred']);
-      }
-      console.error('Login failed:', error);
+      const message = error.response?.data?.message || 'Failed to login';
+      const errors = error.response?.data?.errors || ['An unexpected error occurred'];
+      toast.error(message);
+      errors.forEach((err: string) => {
+        toast.error(err);
+      });
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {errors.length > 0 && (
-          <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-            <ul className="list-disc list-inside">
-              {errors.map((error, index) => (
-                <li key={index}>{error}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full max-w-sm">
         <FormField
           control={form.control}
-          name="username"
+          name="usernameOrEmail"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>Username or Email</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="johndoe@gmail.com" 
-                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
-                    {...field} 
-                    disabled={isLoading}
-                  />
+                  <span className="absolute left-2 top-2.5 text-muted-foreground">
+                    <AtSign className="h-4 w-4" />
+                  </span>
+                  <Input placeholder="Enter your username or email" className="pl-8" {...field} />
                 </div>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="password"
           render={({ field }) => (
             <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Password</FormLabel>
-                <Link 
-                  to="/forgot-password" 
-                  className="text-xs text-primary hover:underline"
-                >
-                  Forgot Password
-                </Link>
-              </div>
+              <FormLabel>Password</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    type="password" 
-                    placeholder="••••••••" 
-                    className="pl-10 bg-background/50 border-border/50 rounded-lg h-12"
-                    {...field} 
-                    disabled={isLoading}
-                  />
+                  <span className="absolute left-2 top-2.5 text-muted-foreground">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                  <Input type="password" placeholder="Enter your password" className="pl-8" {...field} />
                 </div>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
-        <div className="flex items-center space-x-2 my-4">
-          <input
-            type="checkbox"
-            id="remember"
-            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/80"
-          />
-          <label htmlFor="remember" className="text-sm text-muted-foreground">
-            Keep me logged in
-          </label>
-        </div>
-        
-        <Button 
-          type="submit" 
-          className="w-full h-12 bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white rounded-lg transition-all duration-300 font-medium text-base" 
-          disabled={isLoading}
-        >
-          {isLoading ? 'Signing in...' : 'Sign in'}
+
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? 'Logging in...' : 'Login'}
         </Button>
-        
-        <div className="text-center mt-6">
-          <p className="text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link to="/signup" className="text-primary font-medium hover:underline">
-              Sign up
-            </Link>
-          </p>
+
+        <div className="text-center text-sm">
+          Don't have an account?{' '}
+          <Link to="/register" className="text-primary hover:underline">
+            Register
+          </Link>
         </div>
       </form>
     </Form>

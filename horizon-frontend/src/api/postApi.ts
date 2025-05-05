@@ -1,6 +1,11 @@
 import { api } from './index';
 import { Post, CreatePostRequest } from '@/types';
 
+interface PresignedURLResponse {
+  uploadURL: string;
+  fileURL: string;
+}
+
 export const postApi = {
   getPosts: async (limit: number = 20, offset: number = 0): Promise<Post[]> => {
     const response = await api.get<Post[]>('/posts', {
@@ -66,5 +71,22 @@ export const postApi = {
       params: { limit, offset }
     });
     return response.data;
+  },
+
+  getUploadURL: async (fileType: string): Promise<PresignedURLResponse> => {
+    const response = await api.get<PresignedURLResponse>('/posts/upload-url', {
+      params: { fileType }
+    });
+    return response.data;
+  },
+
+  uploadFile: async (uploadURL: string, file: File): Promise<void> => {
+    await fetch(uploadURL, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type,
+      },
+    });
   }
 }; 

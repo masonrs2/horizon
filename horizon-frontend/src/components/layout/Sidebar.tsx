@@ -40,7 +40,7 @@ export function Sidebar() {
       label: 'Notifications', 
       path: '/notifications', 
       requiresAuth: true,
-      badge: unreadCount
+      badge: unreadCount > 0 ? unreadCount : undefined
     },
     { icon: Mail, label: 'Messages', path: '/messages', requiresAuth: true },
     { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks', requiresAuth: true },

@@ -86,3 +86,8 @@ func (s *S3Service) DeleteFile(ctx context.Context, fileURL string) error {
 
 	return nil
 }
+
+// GetClient returns the underlying S3 client
+func (s *S3Service) GetClient() *s3.Client {
+	return s.client
+}

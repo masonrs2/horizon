@@ -220,6 +220,31 @@ export function Post({ post: propPost }: PostProps) {
 
         <div className="mt-3 text-xl">{post.content}</div>
 
+        {/* Add media rendering */}
+        {currentPost?.media_urls && currentPost.media_urls.length > 0 && (
+          <div className={cn(
+            "mt-4",
+            currentPost.media_urls.length === 1 ? "grid-cols-1" : "grid grid-cols-2",
+            "gap-2 rounded-xl overflow-hidden"
+          )}>
+            {currentPost.media_urls.map((url, index) => (
+              <div 
+                key={index} 
+                className={cn(
+                  "relative border border-border/40 rounded-xl overflow-hidden",
+                  currentPost.media_urls.length === 1 ? "aspect-[16/9]" : "aspect-square"
+                )}
+              >
+                <img 
+                  src={url} 
+                  alt="Post media" 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mt-4 text-sm text-muted-foreground">
           {post.createdAt} · {formatNumber(post.stats.views)} views
         </div>

@@ -250,6 +250,31 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
             {post.content}
           </div>
           
+          {/* Add media rendering */}
+          {post.media_urls && post.media_urls.length > 0 && (
+            <div className={cn(
+              "mt-3",
+              post.media_urls.length === 1 ? "grid-cols-1" : "grid grid-cols-2",
+              "gap-2 rounded-xl overflow-hidden"
+            )}>
+              {post.media_urls.map((url, index) => (
+                <div 
+                  key={index} 
+                  className={cn(
+                    "relative border border-border/40 rounded-xl overflow-hidden",
+                    post.media_urls.length === 1 ? "aspect-[16/9]" : "aspect-square"
+                  )}
+                >
+                  <img 
+                    src={url} 
+                    alt="Post media" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          
           {!hideActions && (
             <div className="flex items-center gap-1 mt-3">
               <button

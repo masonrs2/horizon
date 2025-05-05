@@ -173,22 +173,32 @@ func (s *UserService) RegisterUser(ctx context.Context, user *model.User) (*mode
 }
 
 // LoginUser logs in a user
-func (s *UserService) LoginUser(ctx context.Context, username, password string) (*model.User, error) {
-	if username == "" || password == "" {
-		return nil, fmt.Errorf("username and password are required")
+func (s *UserService) LoginUser(ctx context.Context, usernameOrEmail, password string) (*model.User, error) {
+	if usernameOrEmail == "" || password == "" {
+		return nil, fmt.Errorf("username/email and password are required")
 	}
 
-	dbUser, err := s.queries.GetUserByUsername(ctx, username)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("invalid username or password")
+	var dbUser db.User
+	var err error
+
+	// Try to get user by email first
+	dbUser, err = s.queries.GetUserByEmail(ctx, usernameOrEmail)
+	if err == pgx.ErrNoRows {
+		// If not found by email, try username
+		dbUser, err = s.queries.GetUserByUsername(ctx, usernameOrEmail)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return nil, fmt.Errorf("invalid username/email or password")
+			}
+			return nil, fmt.Errorf("error getting user: %w", err)
 		}
-		return nil, fmt.Errorf("error getting user by username: %w", err)
+	} else if err != nil {
+		return nil, fmt.Errorf("error getting user: %w", err)
 	}
 
 	// Check if password matches
 	if !util.CheckPassword(password, dbUser.PasswordHash) {
-		return nil, fmt.Errorf("invalid username or password")
+		return nil, fmt.Errorf("invalid username/email or password")
 	}
 
 	// Get user stats

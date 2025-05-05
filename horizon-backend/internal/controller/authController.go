@@ -27,8 +27,8 @@ func NewAuthController(authProvider auth.AuthProvider, userService *service.User
 
 // LoginRequest represents login credentials
 type LoginRequest struct {
-	Username string `json:"username" validate:"required"`
-	Password string `json:"password" validate:"required"`
+	UsernameOrEmail string `json:"username" validate:"required"`
+	Password        string `json:"password" validate:"required"`
 }
 
 // RegisterRequest represents registration data
@@ -64,8 +64,8 @@ func (c *AuthController) Login(ctx echo.Context) error {
 
 	// Validate request with specific error messages
 	var errors []string
-	if req.Username == "" {
-		errors = append(errors, "Username is required")
+	if req.UsernameOrEmail == "" {
+		errors = append(errors, "Username or email is required")
 	}
 	if req.Password == "" {
 		errors = append(errors, "Password is required")
@@ -79,7 +79,7 @@ func (c *AuthController) Login(ctx echo.Context) error {
 	}
 
 	// Authenticate user
-	accessToken, refreshToken, err := c.authProvider.Login(ctx.Request().Context(), req.Username, req.Password)
+	accessToken, refreshToken, err := c.authProvider.Login(ctx.Request().Context(), req.UsernameOrEmail, req.Password)
 	if err != nil {
 		// Return appropriate error
 		switch err {

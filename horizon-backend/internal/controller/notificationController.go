@@ -111,14 +111,14 @@ func (c *NotificationController) MarkAsRead(ctx echo.Context) error {
 
 // MarkAllAsRead handles PUT /api/notifications/mark-all-read
 func (c *NotificationController) MarkAllAsRead(ctx echo.Context) error {
-	// Get user ID from context
-	userID, err := util.GetUserIDFromContext(ctx.Request().Context())
-	if err != nil {
+	// Get user ID from context using the middleware helper
+	userID := hmiddleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
 	// Mark all as read
-	err = c.notificationService.MarkAllAsRead(ctx.Request().Context(), userID)
+	err := c.notificationService.MarkAllAsRead(ctx.Request().Context(), userID.Bytes)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to mark all notifications as read")
 	}

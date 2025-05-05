@@ -31,13 +31,23 @@ func NewLocalAuthProvider(queries *db.Queries, cfg *config.Config) *LocalAuthPro
 }
 
 // Login authenticates a user and returns access and refresh tokens
-func (p *LocalAuthProvider) Login(ctx context.Context, username, password string) (string, string, error) {
-	// Get user by username
-	dbUser, err := p.queries.GetUserByUsername(ctx, username)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return "", "", ErrUserNotFound
+func (p *LocalAuthProvider) Login(ctx context.Context, usernameOrEmail, password string) (string, string, error) {
+	// Get user by email or username
+	var dbUser db.User
+	var err error
+
+	// Try to get user by email first
+	dbUser, err = p.queries.GetUserByEmail(ctx, usernameOrEmail)
+	if err == pgx.ErrNoRows {
+		// If not found by email, try username
+		dbUser, err = p.queries.GetUserByUsername(ctx, usernameOrEmail)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return "", "", ErrUserNotFound
+			}
+			return "", "", fmt.Errorf("database error: %w", err)
 		}
+	} else if err != nil {
 		return "", "", fmt.Errorf("database error: %w", err)
 	}
 

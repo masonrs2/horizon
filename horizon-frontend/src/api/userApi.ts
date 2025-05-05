@@ -23,7 +23,10 @@ export const userApi = {
   },
   
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/auth/login', credentials);
+    const response = await api.post<LoginResponse>('/auth/login', {
+      username: credentials.usernameOrEmail,
+      password: credentials.password,
+    });
     return response;
   },
   

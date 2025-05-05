@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { usePostStore } from '@/store/postStore';
 import { toast } from 'sonner';
 import { Image, Globe, Lock, Smile, X } from 'lucide-react';
+import { postApi } from '@/api/postApi';
 
 interface CreatePostFormProps {
   placeholder?: string;
@@ -23,12 +24,44 @@ export function CreatePostForm({
   const [isPrivate, setIsPrivate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // This would be replaced with actual file upload functionality
-  const handleAddMedia = () => {
-    // For demo purposes, we'll just add a placeholder image URL
-    setMediaUrls([...mediaUrls, 'https://placehold.co/600x400']);
+  const handleAddMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Only image files are supported');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      // Get presigned URL
+      const { uploadURL, fileURL } = await postApi.getUploadURL(file.type);
+      
+      // Upload file to S3
+      await postApi.uploadFile(uploadURL, file);
+      
+      // Add the file URL to the post's media URLs
+      setMediaUrls([...mediaUrls, fileURL]);
+      
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploading(false);
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
   
   const handleRemoveMedia = (index: number) => {
@@ -127,12 +160,21 @@ export function CreatePostForm({
           
           <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-3">
             <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                id="media-upload"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAddMedia}
+              />
               <Button 
                 type="button" 
                 variant="ghost" 
                 size="icon" 
                 className="text-primary rounded-full h-9 w-9 btn-hover-effect"
-                onClick={handleAddMedia}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
               >
                 <Image className="h-5 w-5" />
               </Button>
@@ -160,7 +202,7 @@ export function CreatePostForm({
             <Button 
               onClick={handleSubmit}
               className="rounded-full px-4 btn-hover-effect sunset-gradient"
-              disabled={isSubmitting || !content.trim()}
+              disabled={isSubmitting || !content.trim() || isUploading}
             >
               {replyToPostId ? 'Reply' : 'Post'}
             </Button>

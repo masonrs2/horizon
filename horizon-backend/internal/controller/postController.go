@@ -8,8 +8,13 @@ import (
 	"horizon-backend/internal/model"
 	"horizon-backend/internal/service"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
@@ -18,12 +23,16 @@ import (
 type PostController struct {
 	postService *service.PostService
 	userService service.AuthService
+	s3Client    *s3.Client
+	bucket      string
 }
 
-func NewPostController(postService *service.PostService, userService service.AuthService) *PostController {
+func NewPostController(postService *service.PostService, userService service.AuthService, s3Client *s3.Client, bucket string) *PostController {
 	return &PostController{
 		postService: postService,
 		userService: userService,
+		s3Client:    s3Client,
+		bucket:      bucket,
 	}
 }
 
@@ -660,4 +669,60 @@ func (c *PostController) GetUserBookmarks(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, posts)
+}
+
+// GetUploadURL generates a presigned URL for uploading post media
+func (c *PostController) GetUploadURL(ctx echo.Context) error {
+	// Get file extension from the request
+	fileType := ctx.QueryParam("fileType")
+	if fileType == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "fileType is required")
+	}
+
+	// Validate file type
+	fileType = strings.ToLower(fileType)
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/gif":  true,
+		"image/webp": true,
+	}
+	if !allowedTypes[fileType] {
+		return echo.NewHTTPError(http.StatusBadRequest, "unsupported file type")
+	}
+
+	// Generate unique filename with proper extension
+	ext := filepath.Ext(fileType)
+	if ext == "" {
+		switch fileType {
+		case "image/jpeg":
+			ext = ".jpg"
+		case "image/png":
+			ext = ".png"
+		case "image/gif":
+			ext = ".gif"
+		case "image/webp":
+			ext = ".webp"
+		}
+	}
+	filename := fmt.Sprintf("%s%s", uuid.New().String(), ext)
+	key := fmt.Sprintf("media/posts/%s", filename)
+
+	// Generate presigned URL
+	presignClient := s3.NewPresignClient(c.s3Client)
+	presignedURL, err := presignClient.PresignPutObject(ctx.Request().Context(), &s3.PutObjectInput{
+		Bucket:      aws.String(c.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(fileType),
+	}, s3.WithPresignExpires(time.Minute*5))
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to generate presigned URL")
+	}
+
+	// Return the presigned URL and the final URL where the image will be accessible
+	return ctx.JSON(http.StatusOK, map[string]string{
+		"uploadURL": presignedURL.URL,
+		"fileURL":   fmt.Sprintf("https://%s.s3.amazonaws.com/%s", c.bucket, key),
+	})
 }

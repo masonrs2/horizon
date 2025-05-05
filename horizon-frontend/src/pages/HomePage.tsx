@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Sidebar } from '../components/layout/Sidebar';
-import { RightSidebar } from '../components/layout/RightSidebar';
-import { MobileNav } from '../components/layout/MobileNav';
-import { PostCard } from '../components/post/PostCard';
-import { CreatePostForm } from '../components/post/CreatePostForm';
-import { Spinner } from '../components/ui/Spinner';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
-import { useAuthStore } from '../store/authStore';
-import { Post as PostType } from '../types';
-import { postApi } from '../api/postApi';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { RightSidebar } from '@/components/layout/RightSidebar';
+import { PostCard } from '@/components/post/PostCard';
+import { CreatePostForm } from '@/components/post/CreatePostForm';
+import { Spinner } from '@/components/ui/Spinner';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import { useAuthStore } from '@/store/authStore';
+import { Post as PostType } from '@/types';
+import { postApi } from '@/api/postApi';
 
 const POSTS_PER_PAGE = 20;
 
@@ -81,43 +80,20 @@ export function HomePage() {
     return <Navigate to="/login" />;
   }
 
+  const tabs = [
+    { id: 'for-you', label: 'For You' },
+    { id: 'following', label: 'Following' }
+  ];
+
   return (
-    <div className="flex min-h-screen">
-      {/* Left Sidebar */}
-      <Sidebar />
-
-      {/* Main Content */}
-      <main className="flex-1 border-x md:ml-[275px] max-w-[600px] md:pl-4">
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur">
-          <div className="px-4 pt-4">
-            <h1 className="text-xl font-bold">Home</h1>
-          </div>
-          
-          {/* Tabs */}
-          <div className="mt-4 flex">
-            <button 
-              onClick={() => setActiveTab('for-you')}
-              className={`flex-1 px-8 py-4 hover:bg-accent/5 ${
-                activeTab === 'for-you' 
-                  ? 'border-b-4 border-primary font-semibold text-foreground' 
-                  : 'border-b border-border text-muted-foreground'
-              }`}
-            >
-              For You
-            </button>
-            <button 
-              onClick={() => setActiveTab('following')}
-              className={`flex-1 px-8 py-4 hover:bg-accent/5 ${
-                activeTab === 'following' 
-                  ? 'border-b-4 border-primary font-semibold text-foreground' 
-                  : 'border-b border-border text-muted-foreground'
-              }`}
-            >
-              Following
-            </button>
-          </div>
-        </div>
-
+    <MainLayout
+      title="Home"
+      showTabs
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={(tabId) => setActiveTab(tabId as 'for-you' | 'following')}
+      rightContent={<RightSidebar />}
+    >
         {/* Create Post Form */}
         <div className="border-b p-4">
           <CreatePostForm onSuccess={handlePostSuccess} />
@@ -159,13 +135,6 @@ export function HomePage() {
             </div>
           )}
         </div>
-      </main>
-
-      {/* Right Sidebar */}
-      <RightSidebar className="hidden lg:block" />
-
-      {/* Mobile Navigation */}
-      <MobileNav />
-    </div>
+    </MainLayout>
   );
 } 

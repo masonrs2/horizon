@@ -58,7 +58,7 @@ func main() {
 	// Initialize controllers
 	healthController := controller.NewHealthController(healthService)
 	userController := controller.NewUserController(userService, s3Service)
-	postController := controller.NewPostController(postService, userService)
+	postController := controller.NewPostController(postService, userService, s3Service.GetClient(), cfg.S3BucketName)
 	followController := controller.NewFollowController(followService, userService)
 	authController := controller.NewAuthController(authProvider, userService)
 	notificationController := controller.NewNotificationController(notificationService)
@@ -112,6 +112,7 @@ func main() {
 	postGroup := e.Group("/api/posts")
 	postGroup.GET("", postController.GetPosts, authMiddleware)
 	postGroup.POST("", postController.CreatePost, authMiddleware)
+	postGroup.GET("/upload-url", postController.GetUploadURL, authMiddleware)
 	postGroup.GET("/:id", postController.GetPostByID, authMiddleware)
 	postGroup.PUT("/:id", postController.UpdatePostContent, authMiddleware)
 	postGroup.DELETE("/:id", postController.DeletePost, authMiddleware)
