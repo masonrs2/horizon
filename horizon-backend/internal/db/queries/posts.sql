@@ -205,4 +205,10 @@ JOIN post_likes pl ON p.id = pl.post_id
 WHERE pl.user_id = $1 
 AND p.deleted_at IS NULL
 ORDER BY pl.created_at DESC
-LIMIT $2 OFFSET $3; 
+LIMIT $2 OFFSET $3;
+
+-- name: HasUserBookmarkedPost :one
+SELECT EXISTS (
+    SELECT 1 FROM bookmarks
+    WHERE post_id = $1 AND user_id = $2
+) as has_bookmarked; 

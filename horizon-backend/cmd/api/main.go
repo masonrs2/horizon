@@ -84,6 +84,11 @@ func main() {
 	userGroup.DELETE("/:username/follow", followController.UnfollowUser, authMiddleware)
 	userGroup.POST("/:username/accept-follow", followController.AcceptFollowRequest, authMiddleware)
 
+	// Bookmark routes
+	userGroup.GET("/me/bookmarks", postController.GetUserBookmarks, authMiddleware)
+	userGroup.POST("/me/bookmarks/:postId", postController.BookmarkPost, authMiddleware)
+	userGroup.DELETE("/me/bookmarks/:postId", postController.UnbookmarkPost, authMiddleware)
+
 	// Post routes
 	postGroup := e.Group("/api/posts")
 	postGroup.GET("", postController.GetPosts, authMiddleware)

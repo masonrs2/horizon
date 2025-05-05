@@ -19,17 +19,18 @@ export interface Post {
   content: string;
   created_at: string;
   updated_at: string;
-  deleted_at: string | null;
+  deleted_at?: string;
   is_private: boolean;
-  reply_to_post_id: string | null;
-  parent_post?: Post;
+  reply_to_post_id?: string;
   allow_replies: boolean;
   media_urls: string[];
   like_count: number;
   repost_count: number;
   reply_count: number;
   has_liked: boolean;
-  user: User;
+  has_bookmarked: boolean;
+  user?: User;
+  parent_post?: Post;
 }
 
 export interface CreatePostRequest {

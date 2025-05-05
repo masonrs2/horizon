@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { usePostStore } from '@/store/postStore';
-import { MessageCircle, Heart, Repeat2, MoreVertical, Trash } from 'lucide-react';
+import { MessageCircle, Heart, Repeat2, MoreVertical, Trash, Bookmark } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { formatNumber, formatRelativeTime } from '@/lib/format';
+import { formatNumber, formatRelativeTime } from '@/lib/utils';
 import { Post } from '@/types';
+import { postApi } from '@/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,12 +61,14 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
   const [isLiking, setIsLiking] = useState(false);
   const [reposted, setReposted] = useState(false);
   const [repostsCount, setRepostsCount] = useState(Number(post.repost_count) || 0);
+  const [bookmarked, setBookmarked] = useState(post.has_bookmarked);
 
   // Only update state when the post ID changes or initial mount
   useEffect(() => {
     setIsLiked(post.has_liked);
     setLikeCount(Number(post.like_count) || 0);
     setRepostsCount(Number(post.repost_count) || 0);
+    setBookmarked(post.has_bookmarked);
   }, [post.id]); // Only run when post ID changes
 
   const handleLike = async (e: React.MouseEvent) => {
@@ -117,6 +120,26 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
     }
   };
 
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser) return;
+
+    // Optimistically update UI
+    setBookmarked(!bookmarked);
+
+    try {
+      if (!bookmarked) {
+        await postApi.bookmarkPost(post.id);
+      } else {
+        await postApi.unbookmarkPost(post.id);
+      }
+    } catch (error) {
+      console.error('Failed to bookmark:', error);
+      // Revert on error
+      setBookmarked(bookmarked);
+    }
+  };
+
   const handleUserClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (post.user?.username) {
@@ -137,10 +160,10 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
 
   // Get the avatar initial safely
   const getAvatarInitial = () => {
-    if (post.user.display_name && post.user.display_name.length > 0) {
+    if (post.user?.display_name && post.user.display_name.length > 0) {
       return post.user.display_name[0].toUpperCase();
     }
-    if (post.user.username && post.user.username.length > 0) {
+    if (post.user?.username && post.user.username.length > 0) {
       return post.user.username[0].toUpperCase();
     }
     return 'U';
@@ -187,8 +210,8 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
                 {post.user.display_name || post.user.username}
               </span>
               <span className="text-muted-foreground truncate">@{post.user.username}</span>
-              <span className="text-muted-foreground shrink-0">·</span>
-              <span className="text-muted-foreground hover:underline shrink-0">
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground hover:underline">
                 {formatRelativeTime(new Date(post.created_at))}
               </span>
             </div>
@@ -228,15 +251,15 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
           </div>
           
           {!hideActions && (
-            <div className="flex items-center gap-10 mt-3">
+            <div className="flex items-center gap-1 mt-3">
               <button
-                className="flex items-center gap-2 text-muted-foreground"
+                className="group/action flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigate(`/post/${post.id}`);
                 }}
               >
-                <div className="p-2 rounded-full hover:bg-primary/10 hover:text-primary transition-colors">
+                <div className="p-2 rounded-full group-hover/action:bg-primary/10">
                   <MessageCircle className="w-[18px] h-[18px]" />
                 </div>
                 <span className="text-sm">{formatNumber(displayReplyCount)}</span>
@@ -244,15 +267,12 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
               
               <button
                 className={cn(
-                  "flex items-center gap-2",
-                  reposted ? "text-green-500" : "text-muted-foreground"
+                  "group/action flex items-center gap-1 text-muted-foreground transition-colors ml-6",
+                  reposted ? "text-green-500" : "hover:text-green-500"
                 )}
                 onClick={handleRepost}
               >
-                <div className={cn(
-                  "p-2 rounded-full transition-colors",
-                  reposted ? "bg-green-500/10" : "hover:bg-green-500/10 hover:text-green-500"
-                )}>
+                <div className="p-2 rounded-full group-hover/action:bg-green-500/10">
                   <Repeat2 className="w-[18px] h-[18px]" />
                 </div>
                 <span className="text-sm">{formatNumber(displayRepostCount)}</span>
@@ -260,24 +280,27 @@ export function PostCard({ post, hideActions = false, isReply = false, compact =
               
               <button
                 className={cn(
-                  "flex items-center gap-2",
-                  isLiked ? "text-red-500" : "text-muted-foreground"
+                  "group/action flex items-center gap-1 text-muted-foreground transition-colors ml-6",
+                  isLiked ? "text-red-500" : "hover:text-red-500"
                 )}
                 onClick={handleLike}
-                disabled={isLiking}
               >
-                <div className={cn(
-                  "p-2 rounded-full transition-colors",
-                  isLiked ? "bg-red-500/10" : "hover:bg-red-500/10 hover:text-red-500"
-                )}>
-                  <Heart 
-                    className={cn(
-                      "w-[18px] h-[18px]",
-                      isLiked && "fill-current"
-                    )} 
-                  />
+                <div className="p-2 rounded-full group-hover/action:bg-red-500/10">
+                  <Heart className={cn("w-[18px] h-[18px]", isLiked && "fill-current")} />
                 </div>
                 <span className="text-sm">{formatNumber(displayLikeCount)}</span>
+              </button>
+
+              <button
+                className={cn(
+                  "group/action flex items-center gap-1 text-muted-foreground transition-colors ml-auto",
+                  bookmarked ? "text-primary" : "hover:text-primary"
+                )}
+                onClick={handleBookmark}
+              >
+                <div className="p-2 rounded-full group-hover/action:bg-primary/10">
+                  <Bookmark className={cn("w-[18px] h-[18px]", bookmarked && "fill-current")} />
+                </div>
               </button>
             </div>
           )}

@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strings"
 
 	"horizon-backend/internal/db"
 	"horizon-backend/internal/model"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,15 +19,11 @@ import (
 type PostService struct {
 	queries     *db.Queries
 	db          *pgxpool.Pool
-	userService interface {
-		GetUserByUsername(ctx context.Context, username string) (*model.User, error)
-	}
+	userService AuthService
 }
 
 // NewPostService creates a new post service
-func NewPostService(queries *db.Queries, pool *pgxpool.Pool, userService interface {
-	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
-}) *PostService {
+func NewPostService(queries *db.Queries, pool *pgxpool.Pool, userService AuthService) *PostService {
 	return &PostService{
 		queries:     queries,
 		db:          pool,
@@ -237,6 +236,15 @@ func (s *PostService) GetPostById(ctx context.Context, postId pgtype.UUID) (*mod
 		if err == nil {
 			post.HasLiked = hasLiked
 		}
+
+		// Check if the user has bookmarked the post
+		var hasBookmarked bool
+		err = tx.QueryRow(ctx,
+			"SELECT EXISTS (SELECT 1 FROM bookmarks WHERE post_id = $1 AND user_id = $2)",
+			postId, userID).Scan(&hasBookmarked)
+		if err == nil {
+			post.HasBookmarked = hasBookmarked
+		}
 	}
 
 	// Commit the transaction
@@ -278,11 +286,21 @@ func (s *PostService) GetPosts(ctx context.Context, limit, offset int32) ([]*mod
 	for _, dbPost := range dbPosts {
 		post := s.dbPostToModelPost(dbPost)
 
-		// If user is authenticated, check if they've liked each post
+		// If user is authenticated, check if they've liked and bookmarked each post
 		if ok && userID.Valid {
+			// Check likes
 			hasLiked, err := s.HasLiked(ctx, dbPost.ID, userID)
 			if err == nil {
 				post.HasLiked = hasLiked
+			}
+
+			// Check bookmarks using direct query
+			var hasBookmarked bool
+			err = tx.QueryRow(ctx,
+				"SELECT EXISTS (SELECT 1 FROM bookmarks WHERE post_id = $1 AND user_id = $2)",
+				dbPost.ID, userID).Scan(&hasBookmarked)
+			if err == nil {
+				post.HasBookmarked = hasBookmarked
 			}
 		}
 
@@ -329,11 +347,21 @@ func (s *PostService) GetUserPosts(ctx context.Context, userId pgtype.UUID, limi
 	for _, dbPost := range dbPosts {
 		post := s.dbPostToModelPost(dbPost)
 
-		// If user is authenticated, check if they've liked each post
+		// If user is authenticated, check if they've liked and bookmarked each post
 		if ok && currentUserID.Valid {
+			// Check likes
 			hasLiked, err := s.HasLiked(ctx, dbPost.ID, currentUserID)
 			if err == nil {
 				post.HasLiked = hasLiked
+			}
+
+			// Check bookmarks
+			var hasBookmarked bool
+			err = tx.QueryRow(ctx,
+				"SELECT EXISTS (SELECT 1 FROM bookmarks WHERE post_id = $1 AND user_id = $2)",
+				dbPost.ID, currentUserID).Scan(&hasBookmarked)
+			if err == nil {
+				post.HasBookmarked = hasBookmarked
 			}
 		}
 
@@ -611,6 +639,153 @@ func (s *PostService) GetUserLikedPostsByUsername(ctx context.Context, username 
 		// Check if the current user has liked the post
 		if userID, ok := ctx.Value("user_id").(pgtype.UUID); ok && userID.Valid {
 			hasLiked, err := s.HasLiked(ctx, dbPost.ID, userID)
+			if err == nil {
+				post.HasLiked = hasLiked
+			}
+		}
+
+		posts[i] = post
+	}
+
+	return posts, nil
+}
+
+// BookmarkPost creates a bookmark for a post
+func (s *PostService) BookmarkPost(ctx context.Context, postID string, userID string) error {
+	// Convert string IDs to UUIDs
+	postUUID, err := uuid.Parse(postID)
+	if err != nil {
+		return fmt.Errorf("invalid post ID: %v", err)
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %v", err)
+	}
+
+	// Start a transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// Check if post exists and is not deleted
+	post, err := qtx.GetPostByID(ctx, pgtype.UUID{Bytes: postUUID, Valid: true})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
+		return fmt.Errorf("failed to check post: %v", err)
+	}
+
+	// Check if post is deleted
+	if post.DeletedAt.Valid {
+		return fmt.Errorf("post not found")
+	}
+
+	// Check if user exists
+	_, err = s.userService.GetUserByID(ctx, pgtype.UUID{Bytes: userUUID, Valid: true})
+	if err != nil {
+		if err.Error() == "user not found" {
+			return fmt.Errorf("user not found")
+		}
+		return fmt.Errorf("failed to check user: %v", err)
+	}
+
+	// Create bookmark
+	err = qtx.CreateBookmark(ctx, db.CreateBookmarkParams{
+		UserID: pgtype.UUID{Bytes: userUUID, Valid: true},
+		PostID: pgtype.UUID{Bytes: postUUID, Valid: true},
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			return fmt.Errorf("post already bookmarked")
+		}
+		return fmt.Errorf("failed to create bookmark: %v", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// UnbookmarkPost removes a bookmark for a post
+func (s *PostService) UnbookmarkPost(ctx context.Context, postID string, userID string) error {
+	// Convert string IDs to UUIDs
+	postUUID, err := uuid.Parse(postID)
+	if err != nil {
+		return fmt.Errorf("invalid post ID: %v", err)
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %v", err)
+	}
+
+	// Delete bookmark
+	err = s.queries.DeleteBookmark(ctx, db.DeleteBookmarkParams{
+		UserID: pgtype.UUID{Bytes: userUUID, Valid: true},
+		PostID: pgtype.UUID{Bytes: postUUID, Valid: true},
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("bookmark not found")
+		}
+		return fmt.Errorf("failed to delete bookmark: %v", err)
+	}
+
+	return nil
+}
+
+// GetUserBookmarks returns all bookmarked posts for a user
+func (s *PostService) GetUserBookmarks(ctx context.Context, userID string, limit int32, offset int32) ([]*model.Post, error) {
+	// Convert string ID to UUID
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %v", err)
+	}
+
+	// Get bookmarked posts
+	dbPosts, err := s.queries.GetUserBookmarkedPosts(ctx, db.GetUserBookmarkedPostsParams{
+		UserID: pgtype.UUID{Bytes: userUUID, Valid: true},
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bookmarked posts: %v", err)
+	}
+
+	// Convert to model.Post slice and enrich with additional data
+	posts := make([]*model.Post, len(dbPosts))
+	for i, dbPost := range dbPosts {
+		post := s.dbPostToModelPost(dbPost)
+
+		// Set has_bookmarked to true since these are bookmarked posts
+		post.HasBookmarked = true
+
+		// Get post stats
+		stats, err := s.queries.GetPostStats(ctx, dbPost.ID)
+		if err == nil {
+			post.ReplyCount = int32(stats.ReplyCount)
+		}
+
+		// Get post owner information
+		postOwner, err := s.userService.GetUserByID(ctx, dbPost.UserID)
+		if err == nil && postOwner != nil {
+			post.Username = postOwner.Username
+			post.DisplayName = postOwner.DisplayName
+			post.AvatarUrl = postOwner.AvatarUrl
+		}
+
+		// Check if the current user has liked the post
+		if userUUID, ok := ctx.Value("user_id").(pgtype.UUID); ok && userUUID.Valid {
+			hasLiked, err := s.HasLiked(ctx, dbPost.ID, userUUID)
 			if err == nil {
 				post.HasLiked = hasLiked
 			}

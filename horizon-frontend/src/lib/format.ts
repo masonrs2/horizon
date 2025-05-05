@@ -3,44 +3,39 @@ import { formatDistanceToNowStrict, format as formatDate } from 'date-fns';
 /**
  * Format a number for display (e.g., 1000 -> 1K)
  */
-export function formatNumber(num: number | null | undefined): string {
-  if (num === null || num === undefined) return '0';
-  
-  if (num === 0) return '0';
-  
-  if (num < 1000) return num.toString();
-  
-  if (num < 1000000) return `${(num / 1000).toFixed(1)}K`;
-  
-  return `${(num / 1000000).toFixed(1)}M`;
+export function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
+  }
+  return num.toString();
 }
 
 /**
  * Format a date relative to now (e.g., "2h", "3d")
  */
-export function formatRelativeTime(date: Date | string | null | undefined): string {
-  if (!date) return '';
-  
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
-  try {
-    const formatted = formatDistanceToNowStrict(dateObj, {
-      addSuffix: false,
-      roundingMethod: 'floor'
-    });
-    
-    // Simplify the format (e.g., "2 hours" -> "2h")
-    return formatted
-      .replace(' seconds', 's')
-      .replace(' minutes', 'm')
-      .replace(' hours', 'h')
-      .replace(' days', 'd')
-      .replace(' months', 'mo')
-      .replace(' years', 'y');
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return '';
-  }
+export function formatRelativeTime(date: Date): string {
+  const distance = formatDistanceToNowStrict(date, {
+    addSuffix: false,
+    roundingMethod: 'floor'
+  });
+
+  // Replace 'seconds' with 's', 'minutes' with 'm', etc.
+  return distance
+    .replace('seconds', 's')
+    .replace('second', 's')
+    .replace('minutes', 'm')
+    .replace('minute', 'm')
+    .replace('hours', 'h')
+    .replace('hour', 'h')
+    .replace('days', 'd')
+    .replace('day', 'd')
+    .replace('months', 'mo')
+    .replace('month', 'mo')
+    .replace('years', 'y')
+    .replace('year', 'y');
 }
 
 /**

@@ -558,3 +558,111 @@ func (c *PostController) GetUserLikedPosts(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, posts)
 }
+
+// BookmarkPost handles bookmarking a post
+func (c *PostController) BookmarkPost(ctx echo.Context) error {
+	// Get post ID from path parameter
+	postID := ctx.Param("postId")
+	if postID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "post ID is required")
+	}
+
+	// Get user ID from context using the middleware helper
+	userID := middleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user not authenticated")
+	}
+
+	// Convert UUID to string
+	userIDStr := uuid.UUID(userID.Bytes).String()
+
+	// Create bookmark
+	err := c.postService.BookmarkPost(ctx.Request().Context(), postID, userIDStr)
+	if err != nil {
+		switch {
+		case err.Error() == "post already bookmarked":
+			return echo.NewHTTPError(http.StatusConflict, "post already bookmarked")
+		case err.Error() == "post not found":
+			return echo.NewHTTPError(http.StatusNotFound, "post not found")
+		case err.Error() == "invalid post ID":
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid post ID format")
+		case err.Error() == "invalid user ID":
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID format")
+		default:
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to bookmark post: "+err.Error())
+		}
+	}
+
+	return ctx.NoContent(http.StatusCreated)
+}
+
+// UnbookmarkPost handles removing a bookmark
+func (c *PostController) UnbookmarkPost(ctx echo.Context) error {
+	// Get post ID from path parameter
+	postID := ctx.Param("postId")
+	if postID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "post ID is required")
+	}
+
+	// Get user ID from context using the middleware helper
+	userID := middleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user not authenticated")
+	}
+
+	// Convert UUID to string
+	userIDStr := uuid.UUID(userID.Bytes).String()
+
+	// Remove bookmark
+	err := c.postService.UnbookmarkPost(ctx.Request().Context(), postID, userIDStr)
+	if err != nil {
+		if err.Error() == "bookmark not found" {
+			return echo.NewHTTPError(http.StatusNotFound, "bookmark not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to remove bookmark")
+	}
+
+	return ctx.NoContent(http.StatusOK)
+}
+
+// GetUserBookmarks returns all bookmarked posts for a user
+func (c *PostController) GetUserBookmarks(ctx echo.Context) error {
+	// Get user ID from context using the middleware helper
+	userID := middleware.GetUserIDFromContext(ctx)
+	if !userID.Valid {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user not authenticated")
+	}
+
+	// Convert UUID to string
+	userIDStr := uuid.UUID(userID.Bytes).String()
+
+	// Get pagination parameters
+	limitStr := ctx.QueryParam("limit")
+	offsetStr := ctx.QueryParam("offset")
+
+	var limit int32 = 10 // Default limit
+	var offset int32 = 0 // Default offset
+
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = int32(parsedLimit)
+			if limit > 50 {
+				limit = 50 // Cap at 50
+			}
+		}
+	}
+
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = int32(parsedOffset)
+		}
+	}
+
+	// Get bookmarked posts
+	posts, err := c.postService.GetUserBookmarks(ctx.Request().Context(), userIDStr, limit, offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get bookmarked posts")
+	}
+
+	return ctx.JSON(http.StatusOK, posts)
+}

@@ -89,3 +89,14 @@ func GetUserIDFromContext(c echo.Context) pgtype.UUID {
 	}
 	return pgtype.UUID{}
 }
+
+// RequireAuth middleware ensures that requests are authenticated
+func RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		userID := c.Get("user_id")
+		if userID == nil {
+			return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+		}
+		return next(c)
+	}
+}

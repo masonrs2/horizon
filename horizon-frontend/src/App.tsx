@@ -8,6 +8,7 @@ import { SignupPage } from '@/pages/SignupPage';
 import { HomePage } from '@/pages/HomePage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { PostPage } from '@/pages/PostPage';
+import { BookmarksPage } from '@/pages/BookmarksPage';
 
 // Protected route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -60,7 +61,7 @@ function App() {
         } />
         <Route path="/bookmarks" element={
           <ProtectedRoute>
-            <div>Bookmarks (Coming Soon)</div>
+            <BookmarksPage />
           </ProtectedRoute>
         } />
         <Route path="/settings" element={

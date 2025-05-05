@@ -40,6 +40,7 @@ export const postApi = {
       ...postFields,
       reply_count: response.data.reply_count || 0,
       has_liked: response.data.has_liked || false,
+      has_bookmarked: response.data.has_bookmarked || false,
       user: {
         id: response.data.user_id,
         username: username || 'unknown',
@@ -60,6 +61,7 @@ export const postApi = {
     return {
       ...postData,
       has_liked: response.data.has_liked || false,
+      has_bookmarked: response.data.has_bookmarked || false,
       reply_count: response.data.reply_count || 0,
       user: {
         id: response.data.user_id,
@@ -83,6 +85,7 @@ export const postApi = {
         ...postData,
         reply_count: post.reply_count || 0,
         has_liked: post.has_liked || false,
+        has_bookmarked: post.has_bookmarked || false,
         user: {
           id: post.user_id,
           username: username || 'unknown',
@@ -105,6 +108,7 @@ export const postApi = {
       return {
         ...postData,
         has_liked: post.has_liked || false,
+        has_bookmarked: post.has_bookmarked || false,
         reply_count: post.reply_count || 0,
         user: {
           id: post.user_id,
@@ -129,6 +133,7 @@ export const postApi = {
         ...postData,
         reply_count: post.reply_count || 0,
         has_liked: post.has_liked || false,
+        has_bookmarked: post.has_bookmarked || false,
         user: {
           id: post.user_id,
           username: username || 'unknown',
@@ -151,6 +156,7 @@ export const postApi = {
         ...reply,
         reply_count: reply.reply_count || 0,
         has_liked: reply.has_liked || false,
+        has_bookmarked: reply.has_bookmarked || false,
         user: {
           id: reply.user_id,
           username: reply.user?.username || 'unknown',
@@ -167,6 +173,7 @@ export const postApi = {
         ...parentPost,
         reply_count: parentPost.reply_count || 0,
         has_liked: parentPost.has_liked || false,
+        has_bookmarked: parentPost.has_bookmarked || false,
         user: {
           id: parentPost.user_id,
           username: parentPost.user?.username || 'unknown',
@@ -242,6 +249,55 @@ export const postApi = {
 
   deletePost: async (postId: string): Promise<void> => {
     await api.delete(`/posts/${postId}`);
+  },
+
+  bookmarkPost: async (postId: string): Promise<void> => {
+    console.log('Sending bookmark request:', { postId });
+    try {
+      const response = await api.post(`/users/me/bookmarks/${postId}`);
+      console.log('Bookmark response:', response.data);
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        // If the user has already bookmarked the post, try to unbookmark it
+        return postApi.unbookmarkPost(postId);
+      }
+      console.error('Bookmark request failed:', error);
+      throw error;
+    }
+  },
+  
+  unbookmarkPost: async (postId: string): Promise<void> => {
+    console.log('Sending unbookmark request:', { postId });
+    try {
+      const response = await api.delete(`/users/me/bookmarks/${postId}`);
+      console.log('Unbookmark response:', response.data);
+    } catch (error) {
+      console.error('Unbookmark request failed:', error);
+      throw error;
+    }
+  },
+
+  getUserBookmarks: async (): Promise<Post[]> => {
+    const response = await api.get<Post[]>('/users/me/bookmarks');
+    return response.data.map(post => {
+      const { username, display_name, avatar_url, ...postData } = post;
+      return {
+        ...postData,
+        reply_count: post.reply_count || 0,
+        has_liked: post.has_liked || false,
+        user: {
+          id: post.user_id,
+          username: username || 'unknown',
+          display_name: display_name || username || 'Unknown User',
+          avatar_url: avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          email_verified: false
+        }
+      };
+    });
   },
 };
 

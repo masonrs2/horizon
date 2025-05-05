@@ -19,6 +19,7 @@ type Post struct {
 	RepostCount   int32              `json:"repost_count"`
 	ReplyCount    int32              `json:"reply_count"`
 	HasLiked      bool               `json:"has_liked"`
+	HasBookmarked bool               `json:"has_bookmarked"`
 	// User information
 	Username    string      `json:"username"`
 	DisplayName pgtype.Text `json:"display_name"`
