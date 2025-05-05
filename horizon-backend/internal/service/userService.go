@@ -50,6 +50,8 @@ func (s *UserService) GetUserByUsername(ctx context.Context, username string) (*
 		DisplayName:    dbUser.DisplayName,
 		AvatarUrl:      dbUser.AvatarUrl,
 		Bio:            dbUser.Bio,
+		Location:       dbUser.Location,
+		Website:        dbUser.Website,
 		IsPrivate:      dbUser.IsPrivate,
 		CreatedAt:      dbUser.CreatedAt,
 		UpdatedAt:      dbUser.UpdatedAt,
@@ -88,6 +90,8 @@ func (s *UserService) GetUserByID(ctx context.Context, id pgtype.UUID) (*model.U
 		DisplayName:    dbUser.DisplayName,
 		AvatarUrl:      dbUser.AvatarUrl,
 		Bio:            dbUser.Bio,
+		Location:       dbUser.Location,
+		Website:        dbUser.Website,
 		IsPrivate:      dbUser.IsPrivate,
 		CreatedAt:      dbUser.CreatedAt,
 		UpdatedAt:      dbUser.UpdatedAt,
@@ -155,6 +159,8 @@ func (s *UserService) RegisterUser(ctx context.Context, user *model.User) (*mode
 		DisplayName:   createdUserRow.DisplayName,
 		AvatarUrl:     pgtype.Text{String: createdUserRow.AvatarUrl, Valid: createdUserRow.AvatarUrl != ""},
 		Bio:           pgtype.Text{String: createdUserRow.Bio, Valid: createdUserRow.Bio != ""},
+		Location:      pgtype.Text{}, // Initialize as empty for new users
+		Website:       pgtype.Text{}, // Initialize as empty for new users
 		IsPrivate:     createdUserRow.IsPrivate,
 		CreatedAt:     createdUserRow.CreatedAt,
 		UpdatedAt:     createdUserRow.UpdatedAt,
@@ -209,6 +215,8 @@ func dbUserToModelUser(dbUser db.User) *model.User {
 		DisplayName:    dbUser.DisplayName,
 		AvatarUrl:      dbUser.AvatarUrl,
 		Bio:            dbUser.Bio,
+		Location:       dbUser.Location,
+		Website:        dbUser.Website,
 		IsPrivate:      dbUser.IsPrivate,
 		CreatedAt:      dbUser.CreatedAt,
 		UpdatedAt:      dbUser.UpdatedAt,
@@ -218,4 +226,63 @@ func dbUserToModelUser(dbUser db.User) *model.User {
 		FollowersCount: 0, // These will be set by the caller if needed
 		FollowingCount: 0,
 	}
+}
+
+// UpdateUser updates a user's profile
+func (s *UserService) UpdateUser(ctx context.Context, userID [16]byte, displayName, bio, location, website string) (*model.User, error) {
+	// Convert userID to pgtype.UUID
+	id := pgtype.UUID{Bytes: userID, Valid: true}
+
+	// Update user in database
+	dbUser, err := s.queries.UpdateUser(ctx, db.UpdateUserParams{
+		ID:          id,
+		DisplayName: pgtype.Text{String: displayName, Valid: displayName != ""},
+		Bio:         pgtype.Text{String: bio, Valid: bio != ""},
+		Location:    pgtype.Text{String: location, Valid: location != ""},
+		Website:     pgtype.Text{String: website, Valid: website != ""},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	// Get user stats
+	stats, err := s.queries.GetUserStats(ctx, dbUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user stats: %w", err)
+	}
+
+	// Convert to model user
+	user := dbUserToModelUser(dbUser)
+	user.FollowersCount = stats.FollowersCount
+	user.FollowingCount = stats.FollowingCount
+
+	return user, nil
+}
+
+// UpdateUserAvatar updates a user's avatar URL
+func (s *UserService) UpdateUserAvatar(ctx context.Context, userID [16]byte, avatarURL string) (*model.User, error) {
+	// Convert userID to pgtype.UUID
+	id := pgtype.UUID{Bytes: userID, Valid: true}
+
+	// Update user in database
+	dbUser, err := s.queries.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
+		ID:        id,
+		AvatarUrl: pgtype.Text{String: avatarURL, Valid: avatarURL != ""},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update user avatar: %w", err)
+	}
+
+	// Get user stats
+	stats, err := s.queries.GetUserStats(ctx, dbUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user stats: %w", err)
+	}
+
+	// Convert to model user
+	user := dbUserToModelUser(dbUser)
+	user.FollowersCount = stats.FollowersCount
+	user.FollowingCount = stats.FollowingCount
+
+	return user, nil
 }

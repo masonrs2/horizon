@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"horizon-backend/internal/middleware"
 	"horizon-backend/internal/model"
 	"horizon-backend/internal/service"
@@ -115,18 +116,12 @@ func (c *PostController) LikePost(ctx echo.Context) error {
 	}
 
 	// Like the post
-	err = c.postService.LikePost(ctx.Request().Context(), postID, userID)
+	err = c.postService.LikePost(ctx.Request().Context(), postID.Bytes, userID.Bytes)
 	if err != nil {
-		if err.Error() == "user has already liked this post" {
-			return echo.NewHTTPError(http.StatusConflict, "you have already liked this post")
-		}
-		if err.Error() == "failed to find post: no rows in result set" {
-			return echo.NewHTTPError(http.StatusNotFound, "post not found")
-		}
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to like post: "+err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("failed to like post: %v", err))
 	}
 
-	return ctx.JSON(http.StatusOK, map[string]string{"message": "post liked"})
+	return ctx.NoContent(http.StatusOK)
 }
 
 // HasLiked checks if a user has liked a post

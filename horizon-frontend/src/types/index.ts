@@ -5,6 +5,8 @@ export interface User {
   avatar_url: string;
   email: string;
   bio?: string;
+  location?: string;
+  website?: string;
   is_private: boolean;
   followers_count: number;
   following_count: number;
@@ -58,7 +60,13 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   access_token: string;
-  user: User;
+  refresh_token: string;
+  user_id: string;
+  username: string;
+  email: string;
+  display_name: string;
+  message?: string;
+  is_new_user?: boolean;
 }
 
 export interface FollowResponse {

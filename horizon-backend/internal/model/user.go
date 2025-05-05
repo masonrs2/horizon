@@ -13,6 +13,8 @@ type User struct {
 	DisplayName    pgtype.Text        `json:"display_name"`
 	AvatarUrl      pgtype.Text        `json:"avatar_url"`
 	Bio            pgtype.Text        `json:"bio"`
+	Location       pgtype.Text        `json:"location"`
+	Website        pgtype.Text        `json:"website"`
 	IsPrivate      bool               `json:"is_private"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`

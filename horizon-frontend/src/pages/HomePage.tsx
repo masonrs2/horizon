@@ -1,157 +1,171 @@
-import { useState, useEffect } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { CreatePostForm } from '@/components/post/CreatePostForm';
-import { PostCard, PostCardSkeleton } from '@/components/post/PostCard';
-import { Button } from '@/components/ui/button';
-import { usePostStore } from '@/store/postStore';
-import { useAuthStore } from '@/store/authStore';
-import { User } from 'lucide-react';
-import { Post as PostType } from '@/types';
-import { mockPosts } from '@/assets/constants/MockPosts';
+import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { Sidebar } from '../components/layout/Sidebar';
+import { RightSidebar } from '../components/layout/RightSidebar';
+import { MobileNav } from '../components/layout/MobileNav';
+import { PostCard } from '../components/post/PostCard';
+import { CreatePostForm } from '../components/post/CreatePostForm';
+import { Spinner } from '../components/ui/Spinner';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useAuthStore } from '../store/authStore';
+import { Post as PostType } from '../types';
+import { postApi } from '../api/postApi';
+
+const POSTS_PER_PAGE = 20;
 
 export function HomePage() {
-  const { posts, isLoading: loading, error, fetchFeed } = usePostStore();
-  const { isAuthenticated } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('for-you');
-  const [showMockData, setShowMockData] = useState(false);
+  const { isAuthenticated, isLoading: authLoading } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<'for-you' | 'following'>('for-you');
+  const [posts, setPosts] = useState<PostType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
 
+  // Load initial posts
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        await fetchFeed();
-      } catch {
-        setShowMockData(true);
+    if (isAuthenticated) {
+      loadPosts(0);
+    }
+  }, [activeTab, isAuthenticated]); // Reload when tab changes or auth state changes
+
+  // Load posts
+  const loadPosts = async (offset: number) => {
+    try {
+      setLoading(true);
+      // For now, we'll use getPosts for both tabs since we haven't implemented following feed yet
+      const newPosts = await postApi.getPosts(POSTS_PER_PAGE, offset);
+      
+      if (offset === 0) {
+        setPosts(newPosts);
+      } else {
+        setPosts(prev => {
+          // Ensure we don't have duplicate posts
+          const existingIds = new Set(prev.map(p => p.id));
+          const uniqueNewPosts = newPosts.filter(p => !existingIds.has(p.id));
+          return [...prev, ...uniqueNewPosts];
+        });
       }
-    };
-    
-    loadData();
-  }, [fetchFeed]);
-
-  const handleRefresh = () => {
-    setShowMockData(false);
-    fetchFeed().catch(() => setShowMockData(true));
+      setHasMore(newPosts.length === POSTS_PER_PAGE);
+    } catch (error) {
+      console.error('Failed to load posts:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Load more posts when scrolling
+  const loadMore = () => {
+    if (!loading && hasMore && isAuthenticated) {
+      loadPosts(posts.length);
+    }
+  };
+
+  // Set up infinite scroll
+  const { observerRef } = useInfiniteScroll(loadMore);
+
+  // Handle post creation success
   const handlePostSuccess = () => {
-    // Refresh the feed after creating a post
-    fetchFeed();
+    loadPosts(0); // Reload posts from the beginning
   };
 
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    // In a real app, you would fetch different data based on the active tab
-  };
-
-  const tabs = [
-    { id: 'for-you', label: 'For You' },
-    { id: 'following', label: 'Following' }
-  ];
-
-  const renderWhoToFollow = () => (
-    <div className="rounded-xl bg-card p-4 shadow-sm border border-border/40 hover:border-border/60 transition-colors duration-300">
-      <h2 className="font-semibold text-lg mb-4">Who to follow</h2>
-      {/* Placeholder for suggested users */}
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">User {i}</p>
-                <p className="text-sm text-muted-foreground">@user{i}</p>
-              </div>
-            </div>
-            <Button size="sm" variant="outline" className="rounded-full btn-hover-effect">Follow</Button>
-          </div>
-        ))}
+  // Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Spinner />
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
 
   return (
-    <MainLayout 
-      title="Home" 
-      showTabs 
-      tabs={tabs}
-      activeTab={activeTab}
-      onTabChange={handleTabChange}
-      rightContent={
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-card shadow-sm border border-border/40 hover:border-border/60 transition-colors duration-300">
-            <h2 className="font-semibold text-lg mb-2 text-transparent bg-clip-text sunset-gradient">Welcome to Horizon</h2>
-            <p className="text-muted-foreground text-sm">Your modern social experience awaits.</p>
+    <div className="flex min-h-screen">
+      {/* Left Sidebar */}
+      <Sidebar />
+
+      {/* Main Content */}
+      <main className="flex-1 border-x md:ml-[275px] max-w-[600px] md:pl-4">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur">
+          <div className="px-4 pt-4">
+            <h1 className="text-xl font-bold">Home</h1>
           </div>
-          {renderWhoToFollow()}
           
-          <div className="p-4 rounded-xl bg-card shadow-sm border border-border/40 hover:border-border/60 transition-colors duration-300">
-            <h2 className="font-semibold text-lg mb-2">Trending Topics</h2>
-            <div className="space-y-3 mt-3">
-              {['#Technology', '#SunsetVibes', '#ArtificialIntelligence'].map((tag) => (
-                <div key={tag} className="hover:bg-accent/5 p-2 -mx-2 rounded-md transition-colors duration-200">
-                  <p className="font-medium">{tag}</p>
-                  <p className="text-xs text-muted-foreground">1.5K posts</p>
-                </div>
-              ))}
-            </div>
+          {/* Tabs */}
+          <div className="mt-4 flex">
+            <button 
+              onClick={() => setActiveTab('for-you')}
+              className={`flex-1 px-8 py-4 hover:bg-accent/5 ${
+                activeTab === 'for-you' 
+                  ? 'border-b-4 border-primary font-semibold text-foreground' 
+                  : 'border-b border-border text-muted-foreground'
+              }`}
+            >
+              For You
+            </button>
+            <button 
+              onClick={() => setActiveTab('following')}
+              className={`flex-1 px-8 py-4 hover:bg-accent/5 ${
+                activeTab === 'following' 
+                  ? 'border-b-4 border-primary font-semibold text-foreground' 
+                  : 'border-b border-border text-muted-foreground'
+              }`}
+            >
+              Following
+            </button>
           </div>
         </div>
-      }
-    >
-      <div className="border-b border-border/40">
-        {isAuthenticated && (
-          <div className="p-4">
-            <CreatePostForm onSuccess={handlePostSuccess} />
-          </div>
-        )}
-      </div>
 
-      <div className="divide-y divide-border/40">
-        {loading && !showMockData ? (
-          // Skeleton loading state
-          Array(3).fill(0).map((_, i) => (
-            <PostCardSkeleton key={i} />
-          ))
-        ) : error && !showMockData ? (
-          // Error state with button to show mock data
-          <div className="p-8 text-center">
-            <p className="text-destructive mb-4">Failed to load feed</p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={handleRefresh} variant="outline" className="rounded-full btn-hover-effect">Try again</Button>
-              <Button onClick={() => setShowMockData(true)} variant="default" className="rounded-full sunset-gradient text-white">Show example posts</Button>
+        {/* Create Post Form */}
+        <div className="border-b p-4">
+          <CreatePostForm onSuccess={handlePostSuccess} />
+        </div>
+
+        {/* Posts */}
+        <div className="divide-y">
+          {posts.map(post => (
+            <PostCard 
+              key={`${post.id}-${post.updated_at || post.created_at}`} 
+              post={post} 
+            />
+          ))}
+
+          {loading && posts.length === 0 && (
+            <div className="flex h-[200px] items-center justify-center">
+              <Spinner />
             </div>
-          </div>
-        ) : posts && posts.length > 0 && !showMockData ? (
-          // Render posts from the store if available
-          posts.map((post: PostType) => (
-            <PostCard key={post.id} post={{
-              ...post,
-              likes_count: post.like_count || 0,
-              replies_count: post.reply_count || 0,
-              reposts_count: post.repost_count || 0,
-              liked_by_user: post.has_liked || false,
-              reposted_by_user: false,
-              user: post.user ? {
-                id: post.user.id,
-                username: post.user.username,
-                display_name: post.user.display_name || post.user.username,
-                avatar_url: post.user.avatar_url || ''
-              } : {
-                id: 'unknown',
-                username: 'unknown',
-                display_name: 'Unknown User',
-                avatar_url: ''
-              }
-            }} />
-          ))
-        ) : (
-          // If no posts in store or showMockData is true, render mock posts
-          mockPosts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))
-        )}
-      </div>
-    </MainLayout>
+          )}
+
+          {hasMore && !loading && (
+            <div ref={observerRef} className="flex justify-center p-4">
+              <Spinner />
+            </div>
+          )}
+
+          {!hasMore && posts.length === 0 && !loading && (
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <p className="text-lg font-medium">
+                {activeTab === 'following' 
+                  ? "You're not following anyone yet"
+                  : "No posts yet"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {activeTab === 'following'
+                  ? "When you follow people, you'll see their posts here."
+                  : "Be the first one to post something!"}
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Right Sidebar */}
+      <RightSidebar className="hidden lg:block" />
+
+      {/* Mobile Navigation */}
+      <MobileNav />
+    </div>
   );
 } 

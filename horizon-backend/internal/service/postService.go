@@ -4,10 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 
 	"horizon-backend/internal/db"
 	"horizon-backend/internal/model"
+
+	"bytes"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -17,17 +20,19 @@ import (
 
 // PostService handles post-related business logic
 type PostService struct {
-	queries     *db.Queries
-	db          *pgxpool.Pool
-	userService AuthService
+	queries             *db.Queries
+	db                  *pgxpool.Pool
+	userService         AuthService
+	notificationService *NotificationService
 }
 
 // NewPostService creates a new post service
-func NewPostService(queries *db.Queries, pool *pgxpool.Pool, userService AuthService) *PostService {
+func NewPostService(queries *db.Queries, pool *pgxpool.Pool, userService AuthService, notificationService *NotificationService) *PostService {
 	return &PostService{
-		queries:     queries,
-		db:          pool,
-		userService: userService,
+		queries:             queries,
+		db:                  pool,
+		userService:         userService,
+		notificationService: notificationService,
 	}
 }
 
@@ -125,50 +130,29 @@ func (s *PostService) HasLiked(ctx context.Context, postId, userId pgtype.UUID) 
 }
 
 // LikePost likes a post
-func (s *PostService) LikePost(ctx context.Context, postId, userId pgtype.UUID) error {
-	// Start a transaction
-	tx, err := s.db.Begin(ctx)
+func (s *PostService) LikePost(ctx context.Context, postID, userID [16]byte) error {
+	// Get post to check owner
+	post, err := s.queries.GetPostByID(ctx, pgtype.UUID{Bytes: postID, Valid: true})
 	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	qtx := db.New(tx)
-
-	// Check if the post exists first
-	_, err = qtx.GetPostByID(ctx, postId)
-	if err != nil {
-		return fmt.Errorf("failed to find post: %w", err)
+		return fmt.Errorf("error getting post: %w", err)
 	}
 
-	// Check if the user has already liked this post
-	hasLiked, err := s.HasLiked(ctx, postId, userId)
-	if err != nil {
-		return fmt.Errorf("failed to check like status: %w", err)
-	}
-
-	if hasLiked {
-		return fmt.Errorf("user has already liked this post")
-	}
-
-	// First record the like
-	_, err = qtx.LikePost(ctx, db.LikePostParams{
-		UserID: userId,
-		PostID: postId,
+	// Create like
+	_, err = s.queries.LikePost(ctx, db.LikePostParams{
+		UserID: pgtype.UUID{Bytes: userID, Valid: true},
+		PostID: pgtype.UUID{Bytes: postID, Valid: true},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to like post: %w", err)
+		return fmt.Errorf("error creating post like: %w", err)
 	}
 
-	// Then increment the counter
-	_, err = qtx.IncrementLikeCount(ctx, postId)
-	if err != nil {
-		return fmt.Errorf("failed to increment like count: %w", err)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	// Create notification for post owner
+	if !bytes.Equal(post.UserID.Bytes[:], userID[:]) { // Don't notify if user likes their own post
+		_, err = s.notificationService.CreateNotification(ctx, post.UserID.Bytes, userID, &postID, nil, model.NotificationTypeLike)
+		if err != nil {
+			// Log error but don't fail the like operation
+			log.Printf("Error creating like notification: %v", err)
+		}
 	}
 
 	return nil
@@ -958,4 +942,61 @@ func (s *PostService) dbPostToModelPost(dbPost interface{}) *model.Post {
 	}
 
 	return &post
+}
+
+// Update CreateReply to create notification
+func (s *PostService) CreateReply(ctx context.Context, reply *model.Post) (*model.Post, error) {
+	// Create reply
+	createdReply, err := s.CreatePost(ctx, reply)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get parent post to notify owner
+	parentPost, err := s.queries.GetPostByID(ctx, pgtype.UUID{Bytes: reply.ReplyToPostID.Bytes, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("error getting parent post: %w", err)
+	}
+
+	// Create notification for parent post owner
+	if !bytes.Equal(parentPost.UserID.Bytes[:], reply.UserID.Bytes[:]) { // Don't notify if user replies to their own post
+		replyID := createdReply.ID.Bytes
+		parentID := reply.ReplyToPostID.Bytes
+		_, err = s.notificationService.CreateNotification(ctx, parentPost.UserID.Bytes, reply.UserID.Bytes, &replyID, &parentID, model.NotificationTypeReply)
+		if err != nil {
+			// Log error but don't fail the reply operation
+			log.Printf("Error creating reply notification: %v", err)
+		}
+	}
+
+	return createdReply, nil
+}
+
+// Update CreateRepost to create notification
+func (s *PostService) CreateRepost(ctx context.Context, postID, userID [16]byte) error {
+	// Get post to check owner
+	post, err := s.queries.GetPostByID(ctx, pgtype.UUID{Bytes: postID, Valid: true})
+	if err != nil {
+		return fmt.Errorf("error getting post: %w", err)
+	}
+
+	// Create repost
+	_, err = s.queries.RepostPost(ctx, db.RepostPostParams{
+		PostID:     pgtype.UUID{Bytes: postID, Valid: true},
+		ReposterID: pgtype.UUID{Bytes: userID, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("error creating repost: %w", err)
+	}
+
+	// Create notification for post owner
+	if !bytes.Equal(post.UserID.Bytes[:], userID[:]) { // Don't notify if user reposts their own post
+		_, err = s.notificationService.CreateNotification(ctx, post.UserID.Bytes, userID, &postID, nil, model.NotificationTypeRepost)
+		if err != nil {
+			// Log error but don't fail the repost operation
+			log.Printf("Error creating repost notification: %v", err)
+		}
+	}
+
+	return nil
 }

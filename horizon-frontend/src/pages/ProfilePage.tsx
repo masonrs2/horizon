@@ -11,6 +11,7 @@ import { CalendarDays, MapPin, Link as LinkIcon, User as UserIcon, Loader2 } fro
 import { formatNumber } from '@/lib/utils';
 import { userApi, postApi } from '@/api';
 import { FollowListModal } from '@/components/ui/FollowListModal';
+import { EditProfileModal } from '@/components/profile/EditProfileModal';
 import { Post } from '@/types';
 
 interface ProfileData {
@@ -67,6 +68,7 @@ export function ProfilePage() {
   const [followListType, setFollowListType] = useState<'followers' | 'following'>('followers');
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoadingFollow, setIsLoadingFollow] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -86,8 +88,8 @@ export function ProfilePage() {
           display_name: user.display_name || user.username,
           avatar_url: user.avatar_url || '',
           bio: user.bio || '',
-          location: '', // Not implemented yet
-          website: '', // Not implemented yet
+          location: user.location || '',
+          website: user.website || '',
           created_at: user.created_at,
           followers_count: user.followers_count,
           following_count: user.following_count
@@ -210,6 +212,32 @@ export function ProfilePage() {
     }
   };
 
+  const handleEditProfileClick = () => {
+    setIsEditProfileModalOpen(true);
+  };
+
+  const handleProfileUpdate = async () => {
+    if (!username) return;
+    
+    try {
+      const user = await userApi.getUserByUsername(username);
+      setUserData({
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name || user.username,
+        avatar_url: user.avatar_url || '',
+        bio: user.bio || '',
+        location: user.location || '',
+        website: user.website || '',
+        created_at: user.created_at,
+        followers_count: user.followers_count,
+        following_count: user.following_count
+      });
+    } catch (err) {
+      console.error('Failed to refresh profile:', err);
+    }
+  };
+
   const renderProfileHeader = () => {
     if (isLoading) {
       return (
@@ -261,7 +289,11 @@ export function ProfilePage() {
             </Avatar>
             
             {isOwnProfile ? (
-              <Button variant="outline" className="rounded-full btn-hover-effect">
+              <Button 
+                variant="outline" 
+                className="rounded-full btn-hover-effect"
+                onClick={handleEditProfileClick}
+              >
                 Edit profile
               </Button>
             ) : (
@@ -288,33 +320,38 @@ export function ProfilePage() {
             </div>
             
             {userData.bio && (
-              <p>{userData.bio}</p>
+              <p className="whitespace-pre-wrap">{userData.bio}</p>
             )}
             
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
               {userData.location && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5 hover:text-foreground transition-colors">
                   <MapPin className="h-4 w-4" />
                   <span>{userData.location}</span>
                 </div>
               )}
               
               {userData.website && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <LinkIcon className="h-4 w-4" />
-                  <a href={userData.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  <a 
+                    href={userData.website.startsWith('http') ? userData.website : `https://${userData.website}`}
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-primary hover:underline transition-colors"
+                  >
                     {userData.website.replace(/^https?:\/\//, '')}
                   </a>
                 </div>
               )}
               
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5 hover:text-foreground transition-colors">
                 <CalendarDays className="h-4 w-4" />
                 <span>Joined {formatDate(userData.created_at)}</span>
               </div>
             </div>
             
-            <div className="flex gap-4 text-sm">
+            <div className="flex gap-4 text-sm pt-1">
               <button
                 onClick={() => handleFollowListClick('following')}
                 className="hover:underline cursor-pointer"
@@ -453,6 +490,16 @@ export function ProfilePage() {
           onClose={() => setFollowListModalOpen(false)}
           username={userData.username}
           type={followListType}
+        />
+      )}
+
+      {/* Edit Profile Modal */}
+      {userData && (
+        <EditProfileModal
+          isOpen={isEditProfileModalOpen}
+          onClose={() => setIsEditProfileModalOpen(false)}
+          userData={userData}
+          onProfileUpdate={handleProfileUpdate}
         />
       )}
     </>

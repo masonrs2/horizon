@@ -79,7 +79,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, username, email, password_hash, display_name, avatar_url, bio, is_private, created_at, updated_at, deleted_at, email_verified, last_login FROM users
+SELECT id, username, email, password_hash, display_name, avatar_url, bio, location, website, is_private, created_at, updated_at, deleted_at, email_verified, last_login FROM users
 WHERE email = $1 AND deleted_at IS NULL
 `
 
@@ -94,6 +94,8 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
+		&i.Location,
+		&i.Website,
 		&i.IsPrivate,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -105,7 +107,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, display_name, avatar_url, bio, is_private, created_at, updated_at, deleted_at, email_verified, last_login FROM users
+SELECT id, username, email, password_hash, display_name, avatar_url, bio, location, website, is_private, created_at, updated_at, deleted_at, email_verified, last_login FROM users
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -120,6 +122,8 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
+		&i.Location,
+		&i.Website,
 		&i.IsPrivate,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -131,7 +135,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, email, password_hash, display_name, avatar_url, bio, is_private, created_at, updated_at, deleted_at, email_verified, last_login FROM users
+SELECT id, username, email, password_hash, display_name, avatar_url, bio, location, website, is_private, created_at, updated_at, deleted_at, email_verified, last_login FROM users
 WHERE username = $1 AND deleted_at IS NULL
 `
 
@@ -146,6 +150,8 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
+		&i.Location,
+		&i.Website,
 		&i.IsPrivate,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -173,5 +179,91 @@ func (q *Queries) GetUserStats(ctx context.Context, id pgtype.UUID) (GetUserStat
 	row := q.db.QueryRow(ctx, getUserStats, id)
 	var i GetUserStatsRow
 	err := row.Scan(&i.FollowersCount, &i.FollowingCount)
+	return i, err
+}
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE users
+SET
+  display_name = COALESCE($2, display_name),
+  bio = COALESCE($3, bio),
+  location = COALESCE($4, location),
+  website = COALESCE($5, website),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING id, username, email, password_hash, display_name, avatar_url, bio, location, website, is_private, created_at, updated_at, deleted_at, email_verified, last_login
+`
+
+type UpdateUserParams struct {
+	ID          pgtype.UUID `json:"id"`
+	DisplayName pgtype.Text `json:"display_name"`
+	Bio         pgtype.Text `json:"bio"`
+	Location    pgtype.Text `json:"location"`
+	Website     pgtype.Text `json:"website"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.ID,
+		arg.DisplayName,
+		arg.Bio,
+		arg.Location,
+		arg.Website,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.Bio,
+		&i.Location,
+		&i.Website,
+		&i.IsPrivate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.EmailVerified,
+		&i.LastLogin,
+	)
+	return i, err
+}
+
+const updateUserAvatar = `-- name: UpdateUserAvatar :one
+UPDATE users
+SET
+  avatar_url = $1,
+  updated_at = NOW()
+WHERE id = $2
+RETURNING id, username, email, password_hash, display_name, avatar_url, bio, location, website, is_private, created_at, updated_at, deleted_at, email_verified, last_login
+`
+
+type UpdateUserAvatarParams struct {
+	AvatarUrl pgtype.Text `json:"avatar_url"`
+	ID        pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserAvatar, arg.AvatarUrl, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.Bio,
+		&i.Location,
+		&i.Website,
+		&i.IsPrivate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.EmailVerified,
+		&i.LastLogin,
+	)
 	return i, err
 }

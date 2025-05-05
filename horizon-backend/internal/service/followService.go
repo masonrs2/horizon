@@ -1,22 +1,27 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log"
 
 	"horizon-backend/internal/db"
+	"horizon-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type FollowService struct {
-	queries *db.Queries
+	queries             *db.Queries
+	notificationService *NotificationService
 }
 
-func NewFollowService(queries *db.Queries) *FollowService {
+func NewFollowService(queries *db.Queries, notificationService *NotificationService) *FollowService {
 	return &FollowService{
-		queries: queries,
+		queries:             queries,
+		notificationService: notificationService,
 	}
 }
 
@@ -25,13 +30,30 @@ type FollowUserResponse struct {
 }
 
 // FollowUser creates a new follow relationship
-func (s *FollowService) FollowUser(ctx context.Context, followerID, followedID pgtype.UUID) (*FollowUserResponse, error) {
+func (s *FollowService) FollowUser(ctx context.Context, followerID, followedID [16]byte) (*FollowUserResponse, error) {
+	// Check if user is trying to follow themselves
+	if bytes.Equal(followerID[:], followedID[:]) {
+		return nil, fmt.Errorf("cannot follow yourself")
+	}
+
+	// Convert IDs to pgtype.UUID
+	follower := pgtype.UUID{Bytes: followerID, Valid: true}
+	followed := pgtype.UUID{Bytes: followedID, Valid: true}
+
+	// Create follow relationship
 	follow, err := s.queries.CreateFollow(ctx, db.CreateFollowParams{
-		FollowerID: followerID,
-		FollowedID: followedID,
+		FollowerID: follower,
+		FollowedID: followed,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating follow: %w", err)
+	}
+
+	// Create notification for followed user
+	_, err = s.notificationService.CreateNotification(ctx, followedID, followerID, nil, nil, model.NotificationTypeFollow)
+	if err != nil {
+		// Log error but don't fail the follow operation
+		log.Printf("Error creating follow notification: %v", err)
 	}
 
 	return &FollowUserResponse{

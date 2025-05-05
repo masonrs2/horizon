@@ -741,6 +741,25 @@ func (q *Queries) GetUserReplies(ctx context.Context, arg GetUserRepliesParams) 
 	return items, nil
 }
 
+const hasUserBookmarkedPost = `-- name: HasUserBookmarkedPost :one
+SELECT EXISTS (
+    SELECT 1 FROM bookmarks
+    WHERE post_id = $1 AND user_id = $2
+) as has_bookmarked
+`
+
+type HasUserBookmarkedPostParams struct {
+	PostID pgtype.UUID `json:"post_id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) HasUserBookmarkedPost(ctx context.Context, arg HasUserBookmarkedPostParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasUserBookmarkedPost, arg.PostID, arg.UserID)
+	var has_bookmarked bool
+	err := row.Scan(&has_bookmarked)
+	return has_bookmarked, err
+}
+
 const hasUserLikedPost = `-- name: HasUserLikedPost :one
 SELECT EXISTS (
     SELECT 1 FROM post_likes

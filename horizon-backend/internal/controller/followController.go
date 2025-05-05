@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -76,10 +77,10 @@ func (c *FollowController) FollowUser(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}
 
-	// Follow user
-	response, err := c.followService.FollowUser(ctx.Request().Context(), currentUser.ID, userToFollow.ID)
+	// Follow the user
+	response, err := c.followService.FollowUser(ctx.Request().Context(), currentUser.ID.Bytes, userToFollow.ID.Bytes)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to follow user")
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("failed to follow user: %v", err))
 	}
 
 	return ctx.JSON(http.StatusOK, response)

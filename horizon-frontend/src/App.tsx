@@ -9,6 +9,7 @@ import { HomePage } from '@/pages/HomePage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { PostPage } from '@/pages/PostPage';
 import { BookmarksPage } from '@/pages/BookmarksPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 // Protected route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -20,6 +21,21 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
+  }
+  
+  return <>{children}</>;
+};
+
+// Public route component that redirects to home if authenticated
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isLoading } = useAuthStore();
+  
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+  
+  if (isAuthenticated) {
+    return <Navigate to="/" />;
   }
   
   return <>{children}</>;
@@ -41,14 +57,12 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/profile/:username" element={<ProfilePage />} />
-        <Route path="/post/:postId" element={<PostPage />} />
-        
         {/* Protected routes */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <HomePage />
+          </ProtectedRoute>
+        } />
         <Route path="/messages" element={
           <ProtectedRoute>
             <div>Messages (Coming Soon)</div>
@@ -56,7 +70,7 @@ function App() {
         } />
         <Route path="/notifications" element={
           <ProtectedRoute>
-            <div>Notifications (Coming Soon)</div>
+            <NotificationsPage />
           </ProtectedRoute>
         } />
         <Route path="/bookmarks" element={
@@ -69,6 +83,20 @@ function App() {
             <div>Settings (Coming Soon)</div>
           </ProtectedRoute>
         } />
+        
+        {/* Public routes */}
+        <Route path="/login" element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        } />
+        <Route path="/signup" element={
+          <PublicRoute>
+            <SignupPage />
+          </PublicRoute>
+        } />
+        <Route path="/profile/:username" element={<ProfilePage />} />
+        <Route path="/post/:postId" element={<PostPage />} />
         
         {/* Catch-all route */}
         <Route path="*" element={<Navigate to="/" />} />

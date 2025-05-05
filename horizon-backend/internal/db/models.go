@@ -5,8 +5,55 @@
 package db
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type NotificationType string
+
+const (
+	NotificationTypeLike   NotificationType = "like"
+	NotificationTypeRepost NotificationType = "repost"
+	NotificationTypeReply  NotificationType = "reply"
+	NotificationTypeFollow NotificationType = "follow"
+)
+
+func (e *NotificationType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationType(s)
+	case string:
+		*e = NotificationType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationType: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationType struct {
+	NotificationType NotificationType `json:"notification_type"`
+	Valid            bool             `json:"valid"` // Valid is true if NotificationType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationType) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationType), nil
+}
 
 type Bookmark struct {
 	UserID    pgtype.UUID        `json:"user_id"`
@@ -44,17 +91,17 @@ type Message struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
-type NeonAuthUsersSync struct {
-	ID          pgtype.UUID        `json:"id"`
-	ExternalID  string             `json:"external_id"`
-	Provider    string             `json:"provider"`
-	Email       string             `json:"email"`
-	Username    pgtype.Text        `json:"username"`
-	DisplayName pgtype.Text        `json:"display_name"`
-	AvatarUrl   pgtype.Text        `json:"avatar_url"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	LastLogin   pgtype.Timestamptz `json:"last_login"`
+type Notification struct {
+	ID           pgtype.UUID        `json:"id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	ActorID      pgtype.UUID        `json:"actor_id"`
+	PostID       pgtype.UUID        `json:"post_id"`
+	ParentPostID pgtype.UUID        `json:"parent_post_id"`
+	Type         NotificationType   `json:"type"`
+	Read         bool               `json:"read"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type Post struct {
@@ -99,6 +146,8 @@ type User struct {
 	DisplayName   pgtype.Text        `json:"display_name"`
 	AvatarUrl     pgtype.Text        `json:"avatar_url"`
 	Bio           pgtype.Text        `json:"bio"`
+	Location      pgtype.Text        `json:"location"`
+	Website       pgtype.Text        `json:"website"`
 	IsPrivate     bool               `json:"is_private"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`

@@ -45,7 +45,7 @@ export function Sidebar() {
   ];
 
   return (
-    <div className="fixed left-0 top-0 h-screen w-[275px] border-r border-border hidden md:flex flex-col p-4 bg-gradient-to-b from-background to-background/95">
+    <div className="fixed left-0 top-0 h-screen w-[275px] border-r border-border hidden md:flex flex-col p-4 pl-8 bg-gradient-to-b from-background to-background/95">
       <div className="mb-6 px-2">
         <h1 className="text-2xl font-bold text-transparent bg-clip-text sunset-gradient">
           Horizon
@@ -60,7 +60,7 @@ export function Sidebar() {
             key={item.path}
             to={item.path}
             className={cn(
-              "flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200",
+              "flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 ml-2",
               isActive(item.path) 
                 ? "font-semibold text-primary bg-primary/10" 
                 : "text-foreground hover:bg-accent/5 btn-hover-effect"
@@ -77,7 +77,7 @@ export function Sidebar() {
         {isAuthenticated ? (
           <button
             onClick={handleLogout}
-            className="flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 text-foreground hover:bg-destructive/10 hover:text-destructive w-full text-left btn-hover-effect"
+            className="flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 text-foreground hover:bg-destructive/10 hover:text-destructive w-full text-left btn-hover-effect ml-2"
           >
             <LogOut className="h-6 w-6" />
             <span>Logout</span>
@@ -85,7 +85,7 @@ export function Sidebar() {
         ) : (
           <Link
             to="/login"
-            className="flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 text-foreground hover:bg-primary/10 hover:text-primary w-full text-left btn-hover-effect"
+            className="flex items-center gap-4 px-4 py-3 text-lg rounded-full transition-all duration-200 text-foreground hover:bg-primary/10 hover:text-primary w-full text-left btn-hover-effect ml-2"
           >
             <LogOut className="h-6 w-6 rotate-180" />
             <span>Login</span>

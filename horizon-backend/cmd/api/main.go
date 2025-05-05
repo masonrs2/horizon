@@ -25,30 +25,43 @@ func main() {
 	cfg := config.Load()
 
 	// Initialize database connection
-	dbPool, err := db.NewPool(cfg)
+	pool, err := db.NewPool(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer dbPool.Close()
+	defer pool.Close()
 
 	// Initialize query client
-	queries := db.New(dbPool)
+	queries := db.New(pool)
 
 	// Initialize services
 	healthService := service.NewHealthService(queries)
 	userService := service.NewUserService(queries)
-	postService := service.NewPostService(queries, dbPool, userService)
-	followService := service.NewFollowService(queries)
+	notificationService := service.NewNotificationService(queries)
+	postService := service.NewPostService(queries, pool, userService, notificationService)
+	followService := service.NewFollowService(queries, notificationService)
 
 	// Initialize auth provider
-	authProvider := auth.GetAuthProvider(queries, cfg)
+	authProvider := auth.NewLocalAuthProvider(queries, cfg)
+
+	// Initialize S3 service
+	s3Service, err := service.NewS3Service(
+		cfg.S3BucketName,
+		cfg.AWSRegion,
+		cfg.AWSAccessKeyID,
+		cfg.AWSSecretAccessKey,
+	)
+	if err != nil {
+		log.Fatalf("Failed to initialize S3 service: %v", err)
+	}
 
 	// Initialize controllers
 	healthController := controller.NewHealthController(healthService)
-	userController := controller.NewUserController(userService)
+	userController := controller.NewUserController(userService, s3Service)
 	postController := controller.NewPostController(postService, userService)
 	followController := controller.NewFollowController(followService, userService)
 	authController := controller.NewAuthController(authProvider, userService)
+	notificationController := controller.NewNotificationController(notificationService)
 
 	// Initialize middleware
 	authMiddleware := middleware.AuthMiddleware(authProvider)
@@ -74,6 +87,8 @@ func main() {
 	// User routes
 	userGroup := e.Group("/api/users")
 	userGroup.GET("/:username", userController.GetUserByUsername, authMiddleware)
+	userGroup.PUT("/:id", userController.UpdateUser, authMiddleware)
+	userGroup.POST("/:id/avatar", userController.UpdateUserAvatar, authMiddleware)
 	userGroup.GET("/:username/posts", postController.GetUserPosts, authMiddleware)
 	userGroup.GET("/:username/replies", postController.GetUserReplies, authMiddleware)
 	userGroup.GET("/:username/likes", postController.GetUserLikedPosts, authMiddleware)
@@ -100,6 +115,13 @@ func main() {
 	postGroup.POST("/:id/likes", postController.LikePost, authMiddleware)
 	postGroup.DELETE("/:id/likes", postController.UnlikePost, authMiddleware)
 	postGroup.GET("/:id/likes/status", postController.HasLiked, authMiddleware)
+
+	// Notification routes
+	notificationGroup := e.Group("/api/notifications")
+	notificationGroup.GET("", notificationController.GetNotifications, authMiddleware)
+	notificationGroup.GET("/unread-count", notificationController.GetUnreadCount, authMiddleware)
+	notificationGroup.PUT("/:id/read", notificationController.MarkAsRead, authMiddleware)
+	notificationGroup.PUT("/mark-all-read", notificationController.MarkAllAsRead, authMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf(":%s", cfg.ServerPort)

@@ -6,7 +6,26 @@ export const postApi = {
     const response = await api.get<Post[]>('/posts', {
       params: { limit, offset }
     });
-    return response.data;
+    return response.data.map(post => {
+      const { username, display_name, avatar_url, ...postData } = post;
+      return {
+        ...postData,
+        reply_count: post.reply_count || 0,
+        has_liked: post.has_liked || false,
+        has_bookmarked: post.has_bookmarked || false,
+        user: {
+          id: post.user_id,
+          username: username || 'unknown',
+          display_name: display_name || username || 'Unknown User',
+          avatar_url: avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          email_verified: false
+        }
+      };
+    });
   },
 
   getPost: async (postId: string): Promise<Post> => {

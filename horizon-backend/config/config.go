@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 
@@ -34,10 +35,17 @@ type Config struct {
 // Load loads configuration from environment variables
 func Load() *Config {
 	// Load .env file if it exists
-	godotenv.Load()
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: Error loading .env file: %v", err)
+	}
 
 	// Set environment
 	env := getEnv("ENVIRONMENT", "development")
+
+	// Log loaded AWS configuration
+	log.Printf("AWS Region: %s", os.Getenv("AWS_REGION"))
+	log.Printf("S3 Bucket: %s", os.Getenv("S3_BUCKET_NAME"))
+	log.Printf("AWS Access Key ID: %s", maskString(os.Getenv("AWS_ACCESS_KEY_ID")))
 
 	// Determine JWT secret based on environment
 	var jwtSecret string
@@ -113,4 +121,12 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		return defaultValue
 	}
 	return value
+}
+
+// maskString masks a string for logging, showing only the first and last 4 characters
+func maskString(s string) string {
+	if len(s) < 8 {
+		return "***"
+	}
+	return s[:4] + "..." + s[len(s)-4:]
 }

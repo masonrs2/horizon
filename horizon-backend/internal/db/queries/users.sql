@@ -32,4 +32,23 @@ SELECT
     (SELECT COUNT(*) FROM follows f WHERE f.followed_id = u.id AND f.is_accepted = true) as followers_count,
     (SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id AND f.is_accepted = true) as following_count
 FROM users u
-WHERE u.id = $1 AND u.deleted_at IS NULL; 
+WHERE u.id = $1 AND u.deleted_at IS NULL;
+
+-- name: UpdateUser :one
+UPDATE users
+SET
+  display_name = COALESCE($2, display_name),
+  bio = COALESCE($3, bio),
+  location = COALESCE($4, location),
+  website = COALESCE($5, website),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateUserAvatar :one
+UPDATE users
+SET
+  avatar_url = sqlc.arg(avatar_url),
+  updated_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *; 

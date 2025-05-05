@@ -10,6 +10,7 @@ interface AuthState {
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
+  refreshToken: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -24,85 +25,107 @@ export const useAuthStore = create<AuthState>((set) => ({
       const response = await userApi.login(credentials);
       const { access_token, refresh_token, user_id, username, email, display_name } = response.data;
       
-      // Store tokens
+      // Store tokens in localStorage
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
-      
-      // Remove any existing hyphens first, then format correctly
-      const cleanUserId = user_id.replace(/-/g, '');
-      const formattedUserId = cleanUserId.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
-      
+
+      // Get full user info
+      const user = await userApi.getCurrentUser();
+
       // Update state
       set({
         isAuthenticated: true,
-        user: {
-          id: formattedUserId,
-          username,
-          email,
-          display_name,
-          is_private: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          email_verified: false
-        },
-        error: null,
+        user,
         isLoading: false,
       });
-    } catch (error: any) {
-      // Handle the new error format
-      let errorMessage = 'Login failed';
-      if (error.response?.data?.errors?.length > 0) {
-        errorMessage = error.response.data.errors.join(', ');
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      }
-      set({ error: errorMessage, isLoading: false });
-      throw error; // Re-throw to let the component handle it
+    } catch (error) {
+      set({
+        isAuthenticated: false,
+        user: null,
+        error: 'Invalid username or password',
+        isLoading: false,
+      });
+      throw error;
     }
   },
 
   logout: () => {
+    // Clear tokens from localStorage
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
-    set({ 
-      user: null, 
-      isAuthenticated: false 
+
+    // Update state
+    set({
+      user: null,
+      isAuthenticated: false,
+      error: null,
     });
   },
 
   checkAuth: async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      set({ isAuthenticated: false, user: null });
-      return;
-    }
-
     set({ isLoading: true });
     try {
-      // Fetch the current user data from the /auth/me endpoint
-      const response = await userApi.getUserMe();
-      
-      // Format the user ID as a UUID by adding hyphens if it's not already formatted
-      const userData = response.data;
-      if (userData.id) {
-        const cleanUserId = userData.id.replace(/-/g, '');
-        userData.id = cleanUserId.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+      // Check if we have a token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        set({ isLoading: false });
+        return;
       }
-      
-      set({ 
-        isAuthenticated: true, 
-        user: userData,
-        isLoading: false 
+
+      // Get user info
+      const user = await userApi.getCurrentUser();
+      set({
+        isAuthenticated: true,
+        user,
+        isLoading: false,
       });
     } catch (error) {
-      console.error('Failed to validate auth:', error);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      set({ 
-        user: null, 
-        isAuthenticated: false, 
-        isLoading: false 
+      // If the error is 401, try to refresh the token
+      if (error.response?.status === 401) {
+        const refreshed = await useAuthStore.getState().refreshToken();
+        if (refreshed) {
+          // Try to get user info again
+          try {
+            const user = await userApi.getCurrentUser();
+            set({
+              isAuthenticated: true,
+              user,
+              isLoading: false,
+            });
+            return;
+          } catch (error) {
+            console.error('Failed to get user info after token refresh:', error);
+          }
+        }
+      }
+
+      // If we get here, either the refresh failed or getting user info failed
+      set({
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
       });
     }
   },
-})); 
+
+  refreshToken: async () => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) {
+        return false;
+      }
+
+      const response = await userApi.refreshToken(refreshToken);
+      const { access_token, refresh_token } = response.data;
+
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      useAuthStore.getState().logout();
+      return false;
+    }
+  },
+}));
