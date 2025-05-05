@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { usePostStore } from '@/store/postStore';
 import { useAuthStore } from '@/store/authStore';
-import { CalendarDays, MapPin, Link as LinkIcon, User as UserIcon } from 'lucide-react';
+import { CalendarDays, MapPin, Link as LinkIcon, User as UserIcon, Loader2 } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
 import { userApi, postApi } from '@/api';
 import { FollowListModal } from '@/components/ui/FollowListModal';
+import { Post } from '@/types';
 
 interface ProfileData {
   id: string;
@@ -42,6 +43,11 @@ interface ProfilePagePost {
   };
 }
 
+interface ReplyWithParent {
+  reply: Post;
+  parentPost: Post;
+}
+
 export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
   const [userData, setUserData] = useState<ProfileData | null>(null);
@@ -51,10 +57,16 @@ export function ProfilePage() {
   const { isAuthenticated, user } = useAuthStore();
   const isOwnProfile = isAuthenticated && user && user.username === username;
   const [posts, setPosts] = useState<ProfilePagePost[]>([]);
+  const [replies, setReplies] = useState<ReplyWithParent[]>([]);
+  const [isLoadingReplies, setIsLoadingReplies] = useState(false);
+  const [likedPosts, setLikedPosts] = useState<Post[]>([]);
+  const [isLoadingLikes, setIsLoadingLikes] = useState(false);
   
   // Add state for follow list modal
   const [followListModalOpen, setFollowListModalOpen] = useState(false);
   const [followListType, setFollowListType] = useState<'followers' | 'following'>('followers');
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isLoadingFollow, setIsLoadingFollow] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -81,29 +93,7 @@ export function ProfilePage() {
           following_count: user.following_count
         };
 
-        // Fetch user's posts
-        const userPosts = await postApi.getUserPosts(username);
-        
-        // Transform posts to match ProfilePagePost interface
-        const profilePosts: ProfilePagePost[] = userPosts.map(post => ({
-          id: post.id,
-          content: post.content,
-          created_at: post.created_at,
-          likes_count: post.like_count,
-          replies_count: post.reply_count,
-          reposts_count: post.repost_count,
-          liked_by_user: post.has_liked,
-          reposted_by_user: false, // Not implemented yet
-          user: {
-            id: post.user.id,
-            username: post.user.username,
-            display_name: post.user.display_name,
-            avatar_url: post.user.avatar_url
-          }
-        }));
-        
         setUserData(profileData);
-        setPosts(profilePosts);
         setIsLoading(false);
       } catch (err: any) {
         console.error('Failed to load profile:', err);
@@ -118,6 +108,56 @@ export function ProfilePage() {
     
     fetchUserProfile();
   }, [username]);
+
+  useEffect(() => {
+    const fetchContent = async () => {
+      if (!username) return;
+
+      try {
+        if (activeTab === 'posts') {
+          const userPosts = await postApi.getUserPosts(username);
+          setPosts(userPosts.map(post => ({
+            ...post,
+            user: {
+              id: post.user?.id || post.user_id,
+              username: post.user?.username || username,
+              display_name: post.user?.display_name || username,
+              avatar_url: post.user?.avatar_url || ''
+            }
+          })));
+        } else if (activeTab === 'replies') {
+          setIsLoadingReplies(true);
+          const userReplies = await postApi.getUserReplies(username);
+          setReplies(userReplies);
+          setIsLoadingReplies(false);
+        } else if (activeTab === 'likes') {
+          setIsLoadingLikes(true);
+          const likes = await postApi.getUserLikes(username);
+          setLikedPosts(likes);
+          setIsLoadingLikes(false);
+        }
+      } catch (err) {
+        console.error('Failed to fetch content:', err);
+      }
+    };
+
+    fetchContent();
+  }, [username, activeTab]);
+
+  useEffect(() => {
+    const fetchFollowStatus = async () => {
+      if (!username || !isAuthenticated) return;
+      
+      try {
+        const status = await userApi.getFollowStatus(username);
+        setIsFollowing(status.is_following);
+      } catch (err) {
+        console.error('Failed to fetch follow status:', err);
+      }
+    };
+
+    fetchFollowStatus();
+  }, [username, isAuthenticated]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -141,6 +181,33 @@ export function ProfilePage() {
   const handleFollowListClick = (type: 'followers' | 'following') => {
     setFollowListType(type);
     setFollowListModalOpen(true);
+  };
+
+  const handleFollowToggle = async () => {
+    if (!username || !isAuthenticated) return;
+    
+    setIsLoadingFollow(true);
+    try {
+      if (isFollowing) {
+        await userApi.unfollowUser(username);
+        setIsFollowing(false);
+      } else {
+        const response = await userApi.followUser(username);
+        setIsFollowing(response.is_accepted);
+      }
+      
+      // Refresh user data to update counts
+      const updatedUser = await userApi.getUserByUsername(username);
+      setUserData(prevData => ({
+        ...prevData!,
+        followers_count: updatedUser.followers_count,
+        following_count: updatedUser.following_count
+      }));
+    } catch (err) {
+      console.error('Failed to toggle follow:', err);
+    } finally {
+      setIsLoadingFollow(false);
+    }
   };
 
   const renderProfileHeader = () => {
@@ -198,8 +265,18 @@ export function ProfilePage() {
                 Edit profile
               </Button>
             ) : (
-              <Button className="rounded-full sunset-gradient btn-hover-effect">
-                Follow
+              <Button 
+                className={`rounded-full ${isFollowing ? 'bg-primary/10 hover:bg-primary/20 text-primary' : 'sunset-gradient'} btn-hover-effect`}
+                onClick={handleFollowToggle}
+                disabled={isLoadingFollow}
+              >
+                {isLoadingFollow ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isFollowing ? (
+                  'Following'
+                ) : (
+                  'Follow'
+                )}
               </Button>
             )}
           </div>
@@ -259,6 +336,72 @@ export function ProfilePage() {
     );
   };
 
+  const renderContent = () => {
+    if (isLoading || (activeTab === 'replies' && isLoadingReplies) || (activeTab === 'likes' && isLoadingLikes)) {
+      return Array(3).fill(0).map((_, i) => (
+        <PostCardSkeleton key={i} />
+      ));
+    }
+
+    if (activeTab === 'posts') {
+      if (posts.length === 0) {
+        return (
+          <div className="p-8 text-center text-muted-foreground">
+            <p className="mb-2">No posts yet</p>
+            <p>When {isOwnProfile ? 'you post' : 'this user posts'}, the posts will show up here.</p>
+          </div>
+        );
+      }
+
+      return posts.map(post => (
+        <PostCard key={post.id} post={post} />
+      ));
+    }
+
+    if (activeTab === 'replies') {
+      if (replies.length === 0) {
+        return (
+          <div className="p-8 text-center text-muted-foreground">
+            <p className="mb-2">No replies yet</p>
+            <p>When {isOwnProfile ? 'you reply to posts' : 'this user replies to posts'}, the replies will show up here.</p>
+          </div>
+        );
+      }
+
+      return replies.map(({ reply, parentPost }) => (
+        <div key={reply.id} className="relative border-b border-border/40">
+          {parentPost && (
+            <div className="opacity-60 hover:opacity-100 transition-all duration-200">
+              <PostCard post={parentPost} hideActions compact />
+            </div>
+          )}
+          <div className="relative pl-6 ml-6 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-border/60">
+            <div className="relative before:absolute before:left-[-24px] before:top-4 before:w-6 before:h-px before:bg-border/60">
+              <PostCard post={reply} isReply />
+            </div>
+          </div>
+        </div>
+      ));
+    }
+
+    if (activeTab === 'likes') {
+      if (likedPosts.length === 0) {
+        return (
+          <div className="p-8 text-center text-muted-foreground">
+            <p className="mb-2">No liked posts yet</p>
+            <p>When {isOwnProfile ? 'you like posts' : 'this user likes posts'}, they will show up here.</p>
+          </div>
+        );
+      }
+
+      return likedPosts.map(post => (
+        <PostCard key={post.id} post={post} />
+      ));
+    }
+
+    return null;
+  };
+
   return (
     <>
       <MainLayout
@@ -299,23 +442,7 @@ export function ProfilePage() {
         
         {/* Profile Content */}
         <div className="divide-y divide-border/40">
-          {isLoading ? (
-            // Loading state for posts
-            Array(3).fill(0).map((_, i) => (
-              <PostCardSkeleton key={i} />
-            ))
-          ) : posts.length > 0 ? (
-            // Show posts
-            posts.map(post => (
-              <PostCard key={post.id} post={post} />
-            ))
-          ) : (
-            // Empty state
-            <div className="p-8 text-center text-muted-foreground">
-              <p className="mb-2">No posts yet</p>
-              <p>When this user posts, their posts will show up here.</p>
-            </div>
-          )}
+          {renderContent()}
         </div>
       </MainLayout>
 

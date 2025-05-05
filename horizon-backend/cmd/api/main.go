@@ -37,7 +37,7 @@ func main() {
 	// Initialize services
 	healthService := service.NewHealthService(queries)
 	userService := service.NewUserService(queries)
-	postService := service.NewPostService(queries, dbPool)
+	postService := service.NewPostService(queries, dbPool, userService)
 	followService := service.NewFollowService(queries)
 
 	// Initialize auth provider
@@ -46,9 +46,12 @@ func main() {
 	// Initialize controllers
 	healthController := controller.NewHealthController(healthService)
 	userController := controller.NewUserController(userService)
-	postController := controller.NewPostController(postService)
-	authController := controller.NewAuthController(authProvider, userService)
+	postController := controller.NewPostController(postService, userService)
 	followController := controller.NewFollowController(followService, userService)
+	authController := controller.NewAuthController(authProvider, userService)
+
+	// Initialize middleware
+	authMiddleware := middleware.AuthMiddleware(authProvider)
 
 	// Initialize Echo
 	e := echo.New()
@@ -57,9 +60,6 @@ func main() {
 	e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.Recover())
 	e.Use(echoMiddleware.CORS())
-
-	// Auth middleware for protected routes
-	authMiddleware := middleware.AuthMiddleware(authProvider)
 
 	// Routes
 	e.GET("/health", healthController.Check)
@@ -75,6 +75,8 @@ func main() {
 	userGroup := e.Group("/api/users")
 	userGroup.GET("/:username", userController.GetUserByUsername, authMiddleware)
 	userGroup.GET("/:username/posts", postController.GetUserPosts, authMiddleware)
+	userGroup.GET("/:username/replies", postController.GetUserReplies, authMiddleware)
+	userGroup.GET("/:username/likes", postController.GetUserLikedPosts, authMiddleware)
 	userGroup.GET("/:username/followers", followController.GetFollowers, authMiddleware)
 	userGroup.GET("/:username/following", followController.GetFollowing, authMiddleware)
 	userGroup.GET("/:username/follow-status", followController.GetFollowStatus, authMiddleware)
@@ -84,15 +86,15 @@ func main() {
 
 	// Post routes
 	postGroup := e.Group("/api/posts")
-	postGroup.POST("", postController.CreatePost, authMiddleware)
 	postGroup.GET("", postController.GetPosts, authMiddleware)
+	postGroup.POST("", postController.CreatePost, authMiddleware)
 	postGroup.GET("/:id", postController.GetPostByID, authMiddleware)
 	postGroup.PUT("/:id", postController.UpdatePostContent, authMiddleware)
 	postGroup.DELETE("/:id", postController.DeletePost, authMiddleware)
-	postGroup.POST("/:id/like", postController.LikePost, authMiddleware)
-	postGroup.DELETE("/:id/like", postController.UnlikePost, authMiddleware)
 	postGroup.GET("/:id/replies", postController.GetPostReplies, authMiddleware)
-	postGroup.GET("/:id/has_liked", postController.HasLiked, authMiddleware)
+	postGroup.POST("/:id/likes", postController.LikePost, authMiddleware)
+	postGroup.DELETE("/:id/likes", postController.UnlikePost, authMiddleware)
+	postGroup.GET("/:id/likes/status", postController.HasLiked, authMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf(":%s", cfg.ServerPort)

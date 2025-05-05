@@ -38,7 +38,7 @@ func (q *Queries) AcceptFollow(ctx context.Context, arg AcceptFollowParams) (Fol
 const createFollow = `-- name: CreateFollow :one
 INSERT INTO follows (follower_id, followed_id, is_accepted)
 VALUES ($1, $2, CASE WHEN (
-    SELECT is_private FROM users WHERE id = $2 AND deleted_at IS NULL
+    SELECT is_private FROM users WHERE id = $2
 ) THEN false ELSE true END)
 RETURNING follower_id, followed_id, is_accepted, created_at
 `
@@ -77,14 +77,10 @@ func (q *Queries) DeleteFollow(ctx context.Context, arg DeleteFollowParams) erro
 
 const getFollowStatus = `-- name: GetFollowStatus :one
 SELECT EXISTS (
-    SELECT 1 FROM follows f
-    WHERE f.follower_id = $1 AND f.followed_id = $2
-) as is_following,
-COALESCE(
-    (SELECT f.is_accepted::boolean FROM follows f
-    WHERE f.follower_id = $1 AND f.followed_id = $2),
-    false
-)::boolean as is_accepted
+    SELECT 1 FROM follows
+    WHERE follower_id = $1 AND followed_id = $2
+    AND is_accepted = true
+) as is_following
 `
 
 type GetFollowStatusParams struct {
@@ -92,16 +88,11 @@ type GetFollowStatusParams struct {
 	FollowedID pgtype.UUID `json:"followed_id"`
 }
 
-type GetFollowStatusRow struct {
-	IsFollowing bool `json:"is_following"`
-	IsAccepted  bool `json:"is_accepted"`
-}
-
-func (q *Queries) GetFollowStatus(ctx context.Context, arg GetFollowStatusParams) (GetFollowStatusRow, error) {
+func (q *Queries) GetFollowStatus(ctx context.Context, arg GetFollowStatusParams) (bool, error) {
 	row := q.db.QueryRow(ctx, getFollowStatus, arg.FollowerID, arg.FollowedID)
-	var i GetFollowStatusRow
-	err := row.Scan(&i.IsFollowing, &i.IsAccepted)
-	return i, err
+	var is_following bool
+	err := row.Scan(&is_following)
+	return is_following, err
 }
 
 const getFollowers = `-- name: GetFollowers :many
@@ -110,13 +101,14 @@ SELECT
     u.username,
     u.display_name,
     u.avatar_url,
-    u.bio,
+    u.created_at,
+    u.updated_at,
     u.is_private,
-    f.is_accepted,
-    f.created_at
-FROM follows f
-JOIN users u ON f.follower_id = u.id
-WHERE f.followed_id = $1 AND u.deleted_at IS NULL
+    f.created_at as followed_at
+FROM users u
+JOIN follows f ON u.id = f.follower_id
+WHERE f.followed_id = $1
+AND f.is_accepted = true
 ORDER BY f.created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -132,10 +124,10 @@ type GetFollowersRow struct {
 	Username    string             `json:"username"`
 	DisplayName pgtype.Text        `json:"display_name"`
 	AvatarUrl   pgtype.Text        `json:"avatar_url"`
-	Bio         pgtype.Text        `json:"bio"`
-	IsPrivate   bool               `json:"is_private"`
-	IsAccepted  bool               `json:"is_accepted"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	IsPrivate   bool               `json:"is_private"`
+	FollowedAt  pgtype.Timestamptz `json:"followed_at"`
 }
 
 func (q *Queries) GetFollowers(ctx context.Context, arg GetFollowersParams) ([]GetFollowersRow, error) {
@@ -152,10 +144,10 @@ func (q *Queries) GetFollowers(ctx context.Context, arg GetFollowersParams) ([]G
 			&i.Username,
 			&i.DisplayName,
 			&i.AvatarUrl,
-			&i.Bio,
-			&i.IsPrivate,
-			&i.IsAccepted,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsPrivate,
+			&i.FollowedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -167,19 +159,34 @@ func (q *Queries) GetFollowers(ctx context.Context, arg GetFollowersParams) ([]G
 	return items, nil
 }
 
+const getFollowersCount = `-- name: GetFollowersCount :one
+SELECT COUNT(*)
+FROM follows
+WHERE followed_id = $1
+AND is_accepted = true
+`
+
+func (q *Queries) GetFollowersCount(ctx context.Context, followedID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getFollowersCount, followedID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getFollowing = `-- name: GetFollowing :many
 SELECT 
     u.id,
     u.username,
     u.display_name,
     u.avatar_url,
-    u.bio,
+    u.created_at,
+    u.updated_at,
     u.is_private,
-    f.is_accepted,
-    f.created_at
-FROM follows f
-JOIN users u ON f.followed_id = u.id
-WHERE f.follower_id = $1 AND u.deleted_at IS NULL
+    f.created_at as followed_at
+FROM users u
+JOIN follows f ON u.id = f.followed_id
+WHERE f.follower_id = $1
+AND f.is_accepted = true
 ORDER BY f.created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -195,10 +202,10 @@ type GetFollowingRow struct {
 	Username    string             `json:"username"`
 	DisplayName pgtype.Text        `json:"display_name"`
 	AvatarUrl   pgtype.Text        `json:"avatar_url"`
-	Bio         pgtype.Text        `json:"bio"`
-	IsPrivate   bool               `json:"is_private"`
-	IsAccepted  bool               `json:"is_accepted"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	IsPrivate   bool               `json:"is_private"`
+	FollowedAt  pgtype.Timestamptz `json:"followed_at"`
 }
 
 func (q *Queries) GetFollowing(ctx context.Context, arg GetFollowingParams) ([]GetFollowingRow, error) {
@@ -215,10 +222,10 @@ func (q *Queries) GetFollowing(ctx context.Context, arg GetFollowingParams) ([]G
 			&i.Username,
 			&i.DisplayName,
 			&i.AvatarUrl,
-			&i.Bio,
-			&i.IsPrivate,
-			&i.IsAccepted,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsPrivate,
+			&i.FollowedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -228,6 +235,20 @@ func (q *Queries) GetFollowing(ctx context.Context, arg GetFollowingParams) ([]G
 		return nil, err
 	}
 	return items, nil
+}
+
+const getFollowingCount = `-- name: GetFollowingCount :one
+SELECT COUNT(*)
+FROM follows
+WHERE follower_id = $1
+AND is_accepted = true
+`
+
+func (q *Queries) GetFollowingCount(ctx context.Context, followerID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getFollowingCount, followerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const getPendingFollowRequests = `-- name: GetPendingFollowRequests :many

@@ -177,4 +177,32 @@ RETURNING repost_count;
 SELECT EXISTS (
     SELECT 1 FROM post_likes
     WHERE post_id = $1 AND user_id = $2
-) as has_liked; 
+) as has_liked;
+
+-- name: GetUserReplies :many
+SELECT 
+    p.*,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+WHERE p.user_id = $1 
+AND p.reply_to_post_id IS NOT NULL
+AND p.deleted_at IS NULL
+ORDER BY p.created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: GetUserLikedPosts :many
+SELECT 
+    p.*,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+JOIN post_likes pl ON p.id = pl.post_id
+WHERE pl.user_id = $1 
+AND p.deleted_at IS NULL
+ORDER BY pl.created_at DESC
+LIMIT $2 OFFSET $3; 

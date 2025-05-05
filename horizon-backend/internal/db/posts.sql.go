@@ -591,6 +591,156 @@ func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]Get
 	return items, nil
 }
 
+const getUserLikedPosts = `-- name: GetUserLikedPosts :many
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+JOIN post_likes pl ON p.id = pl.post_id
+WHERE pl.user_id = $1 
+AND p.deleted_at IS NULL
+ORDER BY pl.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetUserLikedPostsParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Limit  int32       `json:"limit"`
+	Offset int32       `json:"offset"`
+}
+
+type GetUserLikedPostsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetUserLikedPosts(ctx context.Context, arg GetUserLikedPostsParams) ([]GetUserLikedPostsRow, error) {
+	rows, err := q.db.Query(ctx, getUserLikedPosts, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserLikedPostsRow
+	for rows.Next() {
+		var i GetUserLikedPostsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.IsPrivate,
+			&i.ReplyToPostID,
+			&i.AllowReplies,
+			&i.MediaUrls,
+			&i.LikeCount,
+			&i.RepostCount,
+			&i.Username,
+			&i.DisplayName,
+			&i.AvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserReplies = `-- name: GetUserReplies :many
+SELECT 
+    p.id, p.user_id, p.content, p.created_at, p.updated_at, p.deleted_at, p.is_private, p.reply_to_post_id, p.allow_replies, p.media_urls, p.like_count, p.repost_count,
+    u.username,
+    u.display_name,
+    u.avatar_url
+FROM posts p
+JOIN users u ON p.user_id = u.id
+WHERE p.user_id = $1 
+AND p.reply_to_post_id IS NOT NULL
+AND p.deleted_at IS NULL
+ORDER BY p.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetUserRepliesParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Limit  int32       `json:"limit"`
+	Offset int32       `json:"offset"`
+}
+
+type GetUserRepliesRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Content       string             `json:"content"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	IsPrivate     bool               `json:"is_private"`
+	ReplyToPostID pgtype.UUID        `json:"reply_to_post_id"`
+	AllowReplies  bool               `json:"allow_replies"`
+	MediaUrls     []string           `json:"media_urls"`
+	LikeCount     int32              `json:"like_count"`
+	RepostCount   int32              `json:"repost_count"`
+	Username      string             `json:"username"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetUserReplies(ctx context.Context, arg GetUserRepliesParams) ([]GetUserRepliesRow, error) {
+	rows, err := q.db.Query(ctx, getUserReplies, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserRepliesRow
+	for rows.Next() {
+		var i GetUserRepliesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.IsPrivate,
+			&i.ReplyToPostID,
+			&i.AllowReplies,
+			&i.MediaUrls,
+			&i.LikeCount,
+			&i.RepostCount,
+			&i.Username,
+			&i.DisplayName,
+			&i.AvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const hasUserLikedPost = `-- name: HasUserLikedPost :one
 SELECT EXISTS (
     SELECT 1 FROM post_likes

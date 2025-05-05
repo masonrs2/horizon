@@ -39,7 +39,7 @@ export function Sidebar() {
     { 
       icon: User, 
       label: 'Profile', 
-      path: isAuthenticated && user ? `/${user.username}` : '/profile',
+      path: isAuthenticated && user ? `/profile/${user.username}` : '/profile',
       requiresAuth: true 
     },
   ];

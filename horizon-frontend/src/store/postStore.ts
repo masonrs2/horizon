@@ -15,7 +15,8 @@ interface PostState {
   fetchPostById: (postId: string) => Promise<void>;
   fetchReplies: (postId: string) => Promise<void>;
   createPost: (postData: CreatePostRequest) => Promise<Post | null>;
-  likePost: (postId: string, isLiked: boolean) => Promise<void>;
+  likePost: (postId: string, userId: string) => Promise<void>;
+  unlikePost: (postId: string, userId: string) => Promise<void>;
   repostPost: (postId: string, userId: string) => Promise<void>;
 }
 
@@ -51,6 +52,15 @@ export const usePostStore = create<PostState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const post = await postApi.getPostById(postId);
+      
+      // Check if we have this post in our posts array with more recent like state
+      const existingPost = get().posts.find(p => p.id === postId);
+      if (existingPost) {
+        // Use the existing post's like state if it exists
+        post.has_liked = existingPost.has_liked;
+        post.like_count = existingPost.like_count;
+      }
+      
       set({ currentPost: post, isLoading: false });
       // Fetch replies after getting the post
       get().fetchReplies(postId);
@@ -123,73 +133,48 @@ export const usePostStore = create<PostState>((set, get) => ({
     }
   },
   
-  likePost: async (postId, isLiked) => {
-    try {
-      if (isLiked) {
-        await postApi.unlikePost(postId);
-      } else {
-        await postApi.likePost(postId);
-      }
-      
-      // Update the post in all relevant states
-      const { posts, userPosts, currentPost } = get();
-      
-      // Update in feed
-      const updatedPosts = posts.map(post => 
-        post.id === postId ? { ...post, like_count: post.like_count + (isLiked ? -1 : 1) } : post
-      );
-      
-      // Update in user posts
-      const updatedUserPosts = userPosts.map(post => 
-        post.id === postId ? { ...post, like_count: post.like_count + (isLiked ? -1 : 1) } : post
-      );
-      
-      // Update current post if it's the one being liked
-      const updatedCurrentPost = currentPost && currentPost.id === postId
-        ? { ...currentPost, like_count: currentPost.like_count + (isLiked ? -1 : 1) }
-        : currentPost;
-      
-      set({ 
-        posts: updatedPosts, 
-        userPosts: updatedUserPosts,
-        currentPost: updatedCurrentPost
-      });
-    } catch (error) {
-      set({ error: isLiked ? 'Failed to unlike post' : 'Failed to like post' });
-      throw error;
-    }
+  likePost: async (postId, userId) => {
+    await postApi.likePost(postId);
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId ? { ...p, has_liked: true, like_count: (p.like_count || 0) + 1 } : p
+      ),
+      currentPost: state.currentPost?.id === postId 
+        ? { ...state.currentPost, has_liked: true, like_count: (state.currentPost.like_count || 0) + 1 }
+        : state.currentPost,
+      userPosts: state.userPosts.map((p) =>
+        p.id === postId ? { ...p, has_liked: true, like_count: (p.like_count || 0) + 1 } : p
+      )
+    }));
+  },
+  
+  unlikePost: async (postId, userId) => {
+    await postApi.unlikePost(postId);
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId ? { ...p, has_liked: false, like_count: Math.max(0, (p.like_count || 0) - 1) } : p
+      ),
+      currentPost: state.currentPost?.id === postId
+        ? { ...state.currentPost, has_liked: false, like_count: Math.max(0, (state.currentPost.like_count || 0) - 1) }
+        : state.currentPost,
+      userPosts: state.userPosts.map((p) =>
+        p.id === postId ? { ...p, has_liked: false, like_count: Math.max(0, (p.like_count || 0) - 1) } : p
+      )
+    }));
   },
   
   repostPost: async (postId, userId) => {
-    try {
-      await postApi.repostPost(postId, userId);
-      
-      // Update the post in all relevant states
-      const { posts, userPosts, currentPost } = get();
-      
-      // Update in feed
-      const updatedPosts = posts.map(post => 
-        post.id === postId ? { ...post, repost_count: post.repost_count + 1 } : post
-      );
-      
-      // Update in user posts
-      const updatedUserPosts = userPosts.map(post => 
-        post.id === postId ? { ...post, repost_count: post.repost_count + 1 } : post
-      );
-      
-      // Update current post if it's the one being reposted
-      const updatedCurrentPost = currentPost && currentPost.id === postId
-        ? { ...currentPost, repost_count: currentPost.repost_count + 1 }
-        : currentPost;
-      
-      set({ 
-        posts: updatedPosts, 
-        userPosts: updatedUserPosts,
-        currentPost: updatedCurrentPost
-      });
-    } catch (error) {
-      set({ error: 'Failed to repost' });
-      throw error;
-    }
+    await postApi.repostPost(postId);
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId ? { ...p, repost_count: (p.repost_count || 0) + 1 } : p
+      ),
+      currentPost: state.currentPost?.id === postId
+        ? { ...state.currentPost, repost_count: (state.currentPost.repost_count || 0) + 1 }
+        : state.currentPost,
+      userPosts: state.userPosts.map((p) =>
+        p.id === postId ? { ...p, repost_count: (p.repost_count || 0) + 1 } : p
+      )
+    }));
   },
 })); 

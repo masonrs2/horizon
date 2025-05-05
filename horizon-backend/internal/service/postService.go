@@ -14,15 +14,21 @@ import (
 
 // PostService handles post-related business logic
 type PostService struct {
-	queries *db.Queries
-	db      *pgxpool.Pool
+	queries     *db.Queries
+	db          *pgxpool.Pool
+	userService interface {
+		GetUserByUsername(ctx context.Context, username string) (*model.User, error)
+	}
 }
 
 // NewPostService creates a new post service
-func NewPostService(queries *db.Queries, pool *pgxpool.Pool) *PostService {
+func NewPostService(queries *db.Queries, pool *pgxpool.Pool, userService interface {
+	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
+}) *PostService {
 	return &PostService{
-		queries: queries,
-		db:      pool,
+		queries:     queries,
+		db:          pool,
+		userService: userService,
 	}
 }
 
@@ -510,6 +516,112 @@ func (s *PostService) GetUserPostsByUsername(ctx context.Context, username strin
 	return modelPosts, nil
 }
 
+// GetUserReplies retrieves all replies made by a specific user
+func (s *PostService) GetUserReplies(ctx context.Context, userId pgtype.UUID, limit, offset int32) ([]*model.Post, error) {
+	// Start a transaction since we want to ensure consistency
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := db.New(tx)
+
+	// Call database to get replies for the user
+	params := db.GetUserRepliesParams{
+		UserID: userId,
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	dbPosts, err := qtx.GetUserReplies(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user replies: %w", err)
+	}
+
+	// Convert to model posts
+	posts := make([]*model.Post, 0, len(dbPosts))
+
+	// Get the user ID from context
+	currentUserID, ok := ctx.Value("user_id").(pgtype.UUID)
+
+	for _, dbPost := range dbPosts {
+		post := s.dbPostToModelPost(dbPost)
+
+		// If user is authenticated, check if they've liked each post
+		if ok && currentUserID.Valid {
+			hasLiked, err := s.HasLiked(ctx, dbPost.ID, currentUserID)
+			if err == nil {
+				post.HasLiked = hasLiked
+			}
+		}
+
+		posts = append(posts, post)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return posts, nil
+}
+
+// GetUserRepliesByUsername retrieves all replies made by a user identified by username
+func (s *PostService) GetUserRepliesByUsername(ctx context.Context, username string, limit, offset int32) ([]*model.Post, error) {
+	// Get user ID from username
+	user, err := s.userService.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	// Get replies using user ID
+	return s.GetUserReplies(ctx, user.ID, limit, offset)
+}
+
+// GetUserLikedPosts retrieves posts liked by a specific user
+func (s *PostService) GetUserLikedPostsByUsername(ctx context.Context, username string, limit, offset int32) ([]*model.Post, error) {
+	// Get user by username
+	user, err := s.userService.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	// Get liked posts
+	dbPosts, err := s.queries.GetUserLikedPosts(ctx, db.GetUserLikedPostsParams{
+		UserID: user.ID,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get liked posts: %w", err)
+	}
+
+	// Convert to model posts
+	posts := make([]*model.Post, len(dbPosts))
+	for i, dbPost := range dbPosts {
+		post := s.dbPostToModelPost(dbPost)
+
+		// Get post stats
+		stats, err := s.queries.GetPostStats(ctx, dbPost.ID)
+		if err == nil {
+			post.ReplyCount = int32(stats.ReplyCount)
+		}
+
+		// Check if the current user has liked the post
+		if userID, ok := ctx.Value("user_id").(pgtype.UUID); ok && userID.Valid {
+			hasLiked, err := s.HasLiked(ctx, dbPost.ID, userID)
+			if err == nil {
+				post.HasLiked = hasLiked
+			}
+		}
+
+		posts[i] = post
+	}
+
+	return posts, nil
+}
+
 // Helper function to convert db.Post to model.Post
 func (s *PostService) dbPostToModelPost(dbPost interface{}) *model.Post {
 	// Get post stats to include reply count
@@ -620,6 +732,44 @@ func (s *PostService) dbPostToModelPost(dbPost interface{}) *model.Post {
 			Username:      p.Username,
 			DisplayName:   p.DisplayName,
 			AvatarUrl:     p.AvatarUrl,
+		}
+	case db.GetUserLikedPostsRow:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+			Username:      p.Username,
+			DisplayName:   p.DisplayName,
+			AvatarUrl:     p.AvatarUrl,
+			HasLiked:      true, // Since this is a liked post
+		}
+	case db.GetUserRepliesRow:
+		post = model.Post{
+			ID:            p.ID,
+			UserID:        p.UserID,
+			Content:       p.Content,
+			CreatedAt:     p.CreatedAt,
+			UpdatedAt:     p.UpdatedAt,
+			DeletedAt:     p.DeletedAt,
+			IsPrivate:     p.IsPrivate,
+			ReplyToPostID: p.ReplyToPostID,
+			AllowReplies:  p.AllowReplies,
+			MediaUrls:     p.MediaUrls,
+			LikeCount:     p.LikeCount,
+			RepostCount:   p.RepostCount,
+			Username:      p.Username,
+			DisplayName:   p.DisplayName,
+			AvatarUrl:     p.AvatarUrl,
+			HasLiked:      false, // Will be updated later if needed
 		}
 	default:
 		return nil

@@ -52,8 +52,8 @@ func (s *FollowService) UnfollowUser(ctx context.Context, followerID, followedID
 }
 
 type FollowStatus struct {
-	IsFollowing bool  `json:"is_following"`
-	IsAccepted  *bool `json:"is_accepted,omitempty"`
+	IsFollowing bool `json:"is_following"`
+	IsAccepted  bool `json:"is_accepted"`
 }
 
 // GetFollowStatus checks if a user is following another user
@@ -67,11 +67,11 @@ func (s *FollowService) GetFollowStatus(ctx context.Context, followerID, followe
 	if followerID == followedID {
 		return &FollowStatus{
 			IsFollowing: false,
-			IsAccepted:  nil,
+			IsAccepted:  false,
 		}, nil
 	}
 
-	status, err := s.queries.GetFollowStatus(ctx, db.GetFollowStatusParams{
+	isFollowing, err := s.queries.GetFollowStatus(ctx, db.GetFollowStatusParams{
 		FollowerID: followerID,
 		FollowedID: followedID,
 	})
@@ -80,26 +80,15 @@ func (s *FollowService) GetFollowStatus(ctx context.Context, followerID, followe
 			// Not following is a valid state
 			return &FollowStatus{
 				IsFollowing: false,
-				IsAccepted:  nil,
+				IsAccepted:  false,
 			}, nil
 		}
 		return nil, fmt.Errorf("database error while getting follow status: %w", err)
 	}
 
-	// If not following, return appropriate response
-	if !status.IsFollowing {
-		return &FollowStatus{
-			IsFollowing: false,
-			IsAccepted:  nil,
-		}, nil
-	}
-
-	// At this point, we know IsFollowing is true
-	accepted := status.IsAccepted // This is now a bool type
-
 	return &FollowStatus{
-		IsFollowing: true,
-		IsAccepted:  &accepted,
+		IsFollowing: isFollowing,
+		IsAccepted:  isFollowing, // If following is true, it means the follow request was accepted
 	}, nil
 }
 
@@ -108,10 +97,9 @@ type UserFollow struct {
 	Username    string             `json:"username"`
 	DisplayName pgtype.Text        `json:"display_name"`
 	AvatarURL   pgtype.Text        `json:"avatar_url"`
-	Bio         pgtype.Text        `json:"bio"`
 	IsPrivate   bool               `json:"is_private"`
-	IsAccepted  bool               `json:"is_accepted"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	FollowedAt  pgtype.Timestamptz `json:"followed_at,omitempty"`
 }
 
 // GetFollowers gets a list of users who follow the specified user
@@ -132,10 +120,9 @@ func (s *FollowService) GetFollowers(ctx context.Context, userID pgtype.UUID, li
 			Username:    f.Username,
 			DisplayName: f.DisplayName,
 			AvatarURL:   f.AvatarUrl,
-			Bio:         f.Bio,
 			IsPrivate:   f.IsPrivate,
-			IsAccepted:  f.IsAccepted,
 			CreatedAt:   f.CreatedAt,
+			FollowedAt:  f.FollowedAt,
 		})
 	}
 
@@ -160,10 +147,9 @@ func (s *FollowService) GetFollowing(ctx context.Context, userID pgtype.UUID, li
 			Username:    f.Username,
 			DisplayName: f.DisplayName,
 			AvatarURL:   f.AvatarUrl,
-			Bio:         f.Bio,
 			IsPrivate:   f.IsPrivate,
-			IsAccepted:  f.IsAccepted,
 			CreatedAt:   f.CreatedAt,
+			FollowedAt:  f.CreatedAt,
 		})
 	}
 
@@ -188,7 +174,6 @@ func (s *FollowService) GetPendingFollowRequests(ctx context.Context, userID pgt
 			Username:    f.Username,
 			DisplayName: f.DisplayName,
 			AvatarURL:   f.AvatarUrl,
-			Bio:         f.Bio,
 			IsPrivate:   f.IsPrivate,
 			CreatedAt:   f.CreatedAt,
 		})

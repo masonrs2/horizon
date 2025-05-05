@@ -1,316 +1,286 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
-import { Heart, MessageCircle, Repeat2, Share, MoreVertical, Trash } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import { usePostStore } from '@/store/postStore';
+import { MessageCircle, Heart, Repeat2, MoreVertical, Trash } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { formatNumber, formatRelativeTime } from '@/lib/format';
+import { Post } from '@/types';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn, formatNumber } from '@/lib/utils';
-import { Post as ApiPost } from '@/types';
-import { usePostStore } from '@/store/postStore';
-import { useAuthStore } from '@/store/authStore';
-import { postApi } from '@/api';
-import { toast } from 'sonner';
-
-interface PostCardPost {
-  id: string;
-  content: string;
-  created_at: string;
-  likes_count: number;
-  replies_count: number;
-  reposts_count: number;
-  liked_by_user: boolean;
-  reposted_by_user: boolean;
-  user: {
-    id: string;
-    username: string;
-    display_name: string;
-    avatar_url: string;
-  };
-}
 
 interface PostCardProps {
-  post: PostCardPost | ApiPost;
-  isReply?: boolean;
+  post: Post;
   hideActions?: boolean;
+  isReply?: boolean;
+  compact?: boolean;
 }
 
-export function PostCard({ post: rawPost, isReply = false, hideActions = false }: PostCardProps) {
-  const navigate = useNavigate();
-  const { repostPost } = usePostStore();
-  const { user } = useAuthStore();
-  
-  // Transform API post to PostCardPost if needed
-  const post: PostCardPost = 'like_count' in rawPost ? {
-    id: rawPost.id,
-    content: rawPost.content,
-    created_at: rawPost.created_at,
-    likes_count: rawPost.like_count || 0,
-    replies_count: rawPost.reply_count || 0,
-    reposts_count: rawPost.repost_count || 0,
-    liked_by_user: rawPost.has_liked || false,
-    reposted_by_user: false, // TODO: Add reposted_by_user to API
-    user: rawPost.user ? {
-      id: rawPost.user.id || 'unknown',
-      username: rawPost.user.username || 'unknown',
-      display_name: rawPost.user.display_name || rawPost.user.username || 'Unknown User',
-      avatar_url: rawPost.user.avatar_url || ''
-    } : {
-      id: rawPost.user_id || 'unknown', // Try to use the post's user_id if available
-      username: 'unknown',
-      display_name: 'Unknown User',
-      avatar_url: ''
-    }
-  } : rawPost as PostCardPost;
-
-  const [liked, setLiked] = useState(post.liked_by_user);
-  const [likesCount, setLikesCount] = useState(post.likes_count);
-  const [reposted, setReposted] = useState(post.reposted_by_user);
-  const [repostsCount, setRepostsCount] = useState(post.reposts_count);
-
-  const handleLike = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!user) return;
-    
-    try {
-      if (liked) {
-        await postApi.unlikePost(post.id);
-      } else {
-        await postApi.likePost(post.id);
-      }
-      setLiked(!liked);
-      setLikesCount(prev => liked ? prev - 1 : prev + 1);
-    } catch (error) {
-      console.error('Failed to toggle like:', error);
-    }
-  };
-
-  const handleRepost = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!user) return;
-    
-    try {
-      await repostPost(post.id, user.id);
-      setReposted(!reposted);
-      setRepostsCount(prev => reposted ? prev - 1 : prev + 1);
-    } catch (error) {
-      console.error('Failed to repost:', error);
-    }
-  };
-
-  const handleShare = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // In a real app, you would implement sharing functionality
-    console.log('Share post:', post.id);
-  };
-
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!user) return;
-    
-    try {
-      await postApi.deletePost(post.id);
-      toast.success('Post deleted successfully');
-      // Optionally refresh the page or update the posts list
-      if (window.location.pathname === '/') {
-        window.location.reload();
-      } else {
-        navigate('/');
-      }
-    } catch (error) {
-      console.error('Failed to delete post:', error);
-      toast.error('Failed to delete post');
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return format(date, 'MMM d');
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Unknown date';
-    }
-  };
-
-  const handlePostClick = () => {
-    if (isReply || hideActions) {
-      return;
-    }
-    navigate(`/post/${post.id}`);
-  };
-
-  const handleUserClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    navigate(`/profile/${post.user.username}`);
-  };
-
+// Add the PostCardSkeleton component
+export function PostCardSkeleton() {
   return (
-    <div 
-      onClick={handlePostClick}
-      className="block hover:bg-accent/5 transition-all duration-200 cursor-pointer"
-    >
-      <article className={cn(
-        "p-4 border-b border-border/40", 
-        isReply && "pt-2 pb-4"
-      )}>
-        <div className="flex gap-3">
-          <div className="flex-shrink-0">
-            <div 
-              onClick={handleUserClick}
-              className="block gradient-hover rounded-full cursor-pointer"
-            >
-              <Avatar className="h-10 w-10 ring-2 ring-background">
-                {post.user.avatar_url ? (
-                  <AvatarImage src={post.user.avatar_url} alt={post.user.username} />
-                ) : (
-                  <AvatarFallback className="bg-primary/10 text-primary">
-                    {(post.user.display_name || post.user.username || 'U').charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-            </div>
+    <div className="px-6 py-4 border-b border-border/40">
+      <div className="flex gap-4">
+        <div className="shrink-0">
+          <div className="w-12 h-12 rounded-full bg-accent/10 animate-pulse" />
+        </div>
+        <div className="flex-1 min-w-0 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-32 bg-accent/10 rounded animate-pulse" />
+            <div className="h-5 w-24 bg-accent/10 rounded animate-pulse" />
           </div>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <div className="flex items-center gap-1">
-                <span 
-                  onClick={handleUserClick}
-                  className="font-semibold truncate hover:underline hover:text-primary transition-colors duration-200 cursor-pointer"
-                >
-                  {post.user.display_name || post.user.username || 'Unknown User'}
-                </span>
-                <span className="text-muted-foreground">@{post.user.username || 'unknown'}</span>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground text-sm">{formatDate(post.created_at)}</span>
-              </div>
-              
-              {user && user.id === post.user.id && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive cursor-pointer"
-                      onClick={handleDelete}
-                    >
-                      <Trash className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-            
-            <div className="whitespace-pre-wrap break-words mb-3">{post.content}</div>
-            
-            {!hideActions && (
-              <div className="flex justify-between max-w-md -ml-2">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full gap-1.5 btn-hover-effect"
-                  onClick={(e) => {e.preventDefault(); e.stopPropagation()}}
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  {post.replies_count > 0 && (
-                    <span className="text-xs">{formatNumber(post.replies_count)}</span>
-                  )}
-                </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={cn(
-                    "rounded-full gap-1.5 btn-hover-effect",
-                    reposted 
-                      ? "text-green-500 hover:text-green-600 hover:bg-green-100/20" 
-                      : "text-muted-foreground hover:text-green-500 hover:bg-green-100/10"
-                  )}
-                  onClick={handleRepost}
-                >
-                  <Repeat2 className="h-4 w-4" />
-                  {repostsCount > 0 && (
-                    <span className="text-xs">{formatNumber(repostsCount)}</span>
-                  )}
-                </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={cn(
-                    "rounded-full gap-1.5 btn-hover-effect",
-                    liked 
-                      ? "text-primary hover:text-primary/90 hover:bg-primary/10" 
-                      : "text-muted-foreground hover:text-primary hover:bg-primary/10"
-                  )}
-                  onClick={handleLike}
-                >
-                  <Heart className={cn("h-4 w-4", liked && "fill-current")} />
-                  {likesCount > 0 && (
-                    <span className="text-xs">{formatNumber(likesCount)}</span>
-                  )}
-                </Button>
-                
-                <Button 
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full btn-hover-effect"
-                  onClick={handleShare}
-                >
-                  <Share className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+          <div className="space-y-2">
+            <div className="h-5 w-full bg-accent/10 rounded animate-pulse" />
+            <div className="h-5 w-3/4 bg-accent/10 rounded animate-pulse" />
+          </div>
+          <div className="flex items-center gap-8 pt-3">
+            <div className="h-4 w-16 bg-accent/10 rounded animate-pulse" />
+            <div className="h-4 w-16 bg-accent/10 rounded animate-pulse" />
+            <div className="h-4 w-16 bg-accent/10 rounded animate-pulse" />
           </div>
         </div>
-      </article>
+      </div>
     </div>
   );
 }
 
-export function PostCardSkeleton() {
+export function PostCard({ post, hideActions = false, isReply = false, compact = false }: PostCardProps) {
+  const navigate = useNavigate();
+  const { user: currentUser } = useAuthStore();
+  const { likePost, unlikePost, repostPost } = usePostStore();
+  
+  // Initialize state with post data
+  const [isLiked, setIsLiked] = useState(post.has_liked);
+  const [likeCount, setLikeCount] = useState(Number(post.like_count) || 0);
+  const [isLiking, setIsLiking] = useState(false);
+  const [reposted, setReposted] = useState(false);
+  const [repostsCount, setRepostsCount] = useState(Number(post.repost_count) || 0);
+
+  // Only update state when the post ID changes or initial mount
+  useEffect(() => {
+    setIsLiked(post.has_liked);
+    setLikeCount(Number(post.like_count) || 0);
+    setRepostsCount(Number(post.repost_count) || 0);
+  }, [post.id]); // Only run when post ID changes
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLiking || !currentUser) return;
+
+    const newIsLiked = !isLiked;
+    const currentCount = Number(likeCount) || 0;
+    const newLikeCount = currentCount + (newIsLiked ? 1 : -1);
+
+    // Optimistically update UI
+    setIsLiking(true);
+    setIsLiked(newIsLiked);
+    setLikeCount(newLikeCount);
+
+    try {
+      if (newIsLiked) {
+        await likePost(post.id, currentUser.id);
+      } else {
+        await unlikePost(post.id, currentUser.id);
+      }
+    } catch (error) {
+      console.error('Failed to toggle like:', error);
+      // Revert on error
+      setIsLiked(!newIsLiked);
+      setLikeCount(currentCount);
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleRepost = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser || reposted) return;
+
+    const newRepostCount = repostsCount + 1;
+    
+    // Optimistically update UI
+    setReposted(true);
+    setRepostsCount(newRepostCount);
+
+    try {
+      await repostPost(post.id, currentUser.id);
+    } catch (error) {
+      console.error('Failed to repost:', error);
+      // Revert on error
+      setReposted(false);
+      setRepostsCount(repostsCount);
+    }
+  };
+
+  const handleUserClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (post.user?.username) {
+      navigate(`/${post.user.username}`);
+    }
+  };
+
+  const handleDeletePost = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // TODO: Add delete post functionality
+    console.log('Delete post:', post.id);
+  };
+
+  // Early return if no user data
+  if (!post.user) {
+    return null;
+  }
+
+  // Get the avatar initial safely
+  const getAvatarInitial = () => {
+    if (post.user.display_name && post.user.display_name.length > 0) {
+      return post.user.display_name[0].toUpperCase();
+    }
+    if (post.user.username && post.user.username.length > 0) {
+      return post.user.username[0].toUpperCase();
+    }
+    return 'U';
+  };
+
+  const isOwnPost = currentUser?.id === post.user_id;
+
+  // Ensure we have valid numbers for display
+  const displayLikeCount = Number(likeCount) || 0;
+  const displayReplyCount = Number(post.reply_count) || 0;
+  const displayRepostCount = Number(repostsCount) || 0;
+
   return (
-    <div className="p-4 border-b border-border/40">
-      <div className="flex gap-3">
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <div className="flex-1 space-y-3">
-          <div className="flex gap-2 items-center">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-4 w-16" />
+    <div 
+      className={cn(
+        "group px-6 py-4 hover:bg-accent/5 transition-colors cursor-pointer border-b border-border/40",
+        compact && "py-3 px-4"
+      )}
+      onClick={() => navigate(`/post/${post.id}`)}
+    >
+      <div className="flex gap-4">
+        <div 
+          className="shrink-0" 
+          onClick={handleUserClick}
+        >
+          <Avatar className={cn("w-12 h-12", compact && "w-10 h-10")}>
+            {post.user.avatar_url ? (
+              <AvatarImage src={post.user.avatar_url} alt={post.user.display_name || post.user.username} />
+            ) : (
+              <AvatarFallback>
+                {getAvatarInitial()}
+              </AvatarFallback>
+            )}
+          </Avatar>
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[15px] min-w-0">
+              <span 
+                className="font-semibold truncate hover:underline"
+                onClick={handleUserClick}
+              >
+                {post.user.display_name || post.user.username}
+              </span>
+              <span className="text-muted-foreground truncate">@{post.user.username}</span>
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span className="text-muted-foreground hover:underline shrink-0">
+                {formatRelativeTime(new Date(post.created_at))}
+              </span>
+            </div>
+
+            {isOwnPost && (
+              <DropdownMenu>
+                <DropdownMenuTrigger 
+                  className="opacity-0 group-hover:opacity-100 -mr-2 h-8 w-8 flex items-center justify-center rounded-full hover:bg-primary/10 transition-all"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="w-5 h-5 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                    onClick={handleDeletePost}
+                  >
+                    <Trash className="w-4 h-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-          <div className="flex justify-between pt-2">
-            <Skeleton className="h-4 w-8" />
-            <Skeleton className="h-4 w-8" />
-            <Skeleton className="h-4 w-8" />
-            <Skeleton className="h-4 w-8" />
+          
+          {isReply && post.reply_to_post_id && post.parent_post?.user && (
+            <div className="text-sm text-muted-foreground mt-0.5 mb-2">
+              Replying to <span className="text-primary hover:underline">@{post.parent_post.user.username}</span>
+            </div>
+          )}
+          
+          <div className={cn(
+            "mt-2 text-[15px] whitespace-pre-wrap break-words leading-normal",
+            compact && "text-sm"
+          )}>
+            {post.content}
           </div>
+          
+          {!hideActions && (
+            <div className="flex items-center gap-10 mt-3">
+              <button
+                className="flex items-center gap-2 text-muted-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/post/${post.id}`);
+                }}
+              >
+                <div className="p-2 rounded-full hover:bg-primary/10 hover:text-primary transition-colors">
+                  <MessageCircle className="w-[18px] h-[18px]" />
+                </div>
+                <span className="text-sm">{formatNumber(displayReplyCount)}</span>
+              </button>
+              
+              <button
+                className={cn(
+                  "flex items-center gap-2",
+                  reposted ? "text-green-500" : "text-muted-foreground"
+                )}
+                onClick={handleRepost}
+              >
+                <div className={cn(
+                  "p-2 rounded-full transition-colors",
+                  reposted ? "bg-green-500/10" : "hover:bg-green-500/10 hover:text-green-500"
+                )}>
+                  <Repeat2 className="w-[18px] h-[18px]" />
+                </div>
+                <span className="text-sm">{formatNumber(displayRepostCount)}</span>
+              </button>
+              
+              <button
+                className={cn(
+                  "flex items-center gap-2",
+                  isLiked ? "text-red-500" : "text-muted-foreground"
+                )}
+                onClick={handleLike}
+                disabled={isLiking}
+              >
+                <div className={cn(
+                  "p-2 rounded-full transition-colors",
+                  isLiked ? "bg-red-500/10" : "hover:bg-red-500/10 hover:text-red-500"
+                )}>
+                  <Heart 
+                    className={cn(
+                      "w-[18px] h-[18px]",
+                      isLiked && "fill-current"
+                    )} 
+                  />
+                </div>
+                <span className="text-sm">{formatNumber(displayLikeCount)}</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

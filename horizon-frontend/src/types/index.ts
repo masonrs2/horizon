@@ -1,18 +1,16 @@
 export interface User {
   id: string;
   username: string;
-  email: string;
   display_name: string;
   avatar_url: string;
-  bio: string;
+  email: string;
+  bio?: string;
   is_private: boolean;
-  created_at: string;
-  updated_at: string;
-  deleted_at?: string;
-  email_verified: boolean;
-  last_login?: string;
   followers_count: number;
   following_count: number;
+  created_at: string;
+  updated_at: string;
+  email_verified: boolean;
 }
 
 export interface Post {
@@ -21,32 +19,28 @@ export interface Post {
   content: string;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
   is_private: boolean;
-  reply_to_post_id?: string;
+  reply_to_post_id: string | null;
+  parent_post?: Post;
   allow_replies: boolean;
   media_urls: string[];
   like_count: number;
   repost_count: number;
   reply_count: number;
   has_liked: boolean;
-  user: {
-    id: string;
-    username: string;
-    display_name: string;
-    avatar_url: string;
-  };
+  user: User;
 }
 
 export interface CreatePostRequest {
-  user_id: string;
   content: string;
-  is_private: boolean;
+  is_private?: boolean;
   reply_to_post_id?: string;
   media_urls?: string[];
 }
 
 export interface LikePostRequest {
-  user_id: string;
+  post_id: string;
 }
 
 export interface CreateUserRequest {
@@ -62,10 +56,11 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  user_id: string;
-  username: string;
-  display_name: string;
-  email: string;
   access_token: string;
-  refresh_token: string;
+  user: User;
+}
+
+export interface FollowResponse {
+  is_following: boolean;
+  is_accepted: boolean;
 } 

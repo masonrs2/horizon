@@ -5,16 +5,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useState, useEffect } from 'react';
 import { userApi } from '@/api';
 import { Link } from 'react-router-dom';
-
-interface User {
-  id: string;
-  username: string;
-  display_name: string;
-  avatar_url: string | null;
-  bio: string;
-  is_private: boolean;
-  is_accepted: boolean;
-}
+import { Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
+import { User } from '@/types';
 
 interface FollowListModalProps {
   isOpen: boolean;
@@ -27,6 +21,8 @@ export function FollowListModal({ isOpen, onClose, username, type }: FollowListM
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { user: currentUser } = useAuthStore();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -36,71 +32,84 @@ export function FollowListModal({ isOpen, onClose, username, type }: FollowListM
       setError(null);
       
       try {
-        const response = type === 'followers' 
+        const data = type === 'followers' 
           ? await userApi.getFollowers(username)
           : await userApi.getFollowing(username);
-        
-        setUsers(response);
-        setIsLoading(false);
+        setUsers(data);
       } catch (err) {
-        console.error(`Failed to load ${type}:`, err);
-        setError(`Failed to load ${type}`);
+        console.error('Failed to fetch users:', err);
+        setError('Failed to load users');
+      } finally {
         setIsLoading(false);
       }
     };
 
     fetchUsers();
-  }, [username, type, isOpen]);
+  }, [isOpen, username, type]);
+
+  const handleFollowToggle = async (user: User) => {
+    try {
+      const isFollowing = users.find(u => u.id === user.id)?.is_following;
+      
+      if (isFollowing) {
+        await userApi.unfollowUser(user.username);
+      } else {
+        await userApi.followUser(user.username);
+      }
+
+      // Refresh the list
+      const data = type === 'followers' 
+        ? await userApi.getFollowers(username)
+        : await userApi.getFollowing(username);
+      setUsers(data);
+    } catch (err) {
+      console.error('Failed to toggle follow:', err);
+    }
+  };
+
+  const handleUserClick = (username: string) => {
+    navigate(`/${username}`);
+    onClose();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{type === 'followers' ? 'Followers' : 'Following'}</DialogTitle>
+          <DialogTitle>
+            {type === 'followers' ? 'Followers' : 'Following'}
+          </DialogTitle>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[60vh] overflow-y-auto pr-4">
+        <ScrollArea className="max-h-[60vh] overflow-y-auto px-1">
           {isLoading ? (
-            // Loading state
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-3 animate-pulse">
-                  <div className="w-12 h-12 rounded-full bg-accent/10" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-24 bg-accent/10 rounded" />
-                    <div className="h-3 w-32 bg-accent/10 rounded" />
-                  </div>
-                </div>
-              ))}
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : error ? (
-            // Error state
             <div className="text-center py-8 text-destructive">
-              <p>{error}</p>
-              <Button variant="outline" onClick={() => setIsLoading(true)} className="mt-4">
-                Try again
-              </Button>
+              {error}
             </div>
           ) : users.length === 0 ? (
-            // Empty state
             <div className="text-center py-8 text-muted-foreground">
-              <p>No {type} yet</p>
+              {type === 'followers' 
+                ? 'No followers yet'
+                : `@${username} isn't following anyone`
+              }
             </div>
           ) : (
-            // User list
             <div className="space-y-4">
               {users.map((user) => (
                 <div key={user.id} className="flex items-center justify-between">
-                  <Link 
-                    to={`/${user.username}`} 
-                    className="flex items-center gap-3 flex-1 hover:bg-accent/5 p-2 rounded-lg transition-colors"
-                    onClick={onClose}
+                  <div 
+                    className="flex items-center gap-3 cursor-pointer hover:opacity-80"
+                    onClick={() => handleUserClick(user.username)}
                   >
-                    <Avatar className="h-12 w-12">
+                    <Avatar>
                       {user.avatar_url ? (
                         <AvatarImage src={user.avatar_url} alt={user.display_name} />
                       ) : (
-                        <AvatarFallback className="bg-primary/10 text-primary">
+                        <AvatarFallback>
                           {user.display_name.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       )}
@@ -108,16 +117,19 @@ export function FollowListModal({ isOpen, onClose, username, type }: FollowListM
                     <div>
                       <p className="font-medium">{user.display_name}</p>
                       <p className="text-sm text-muted-foreground">@{user.username}</p>
-                      {user.bio && (
-                        <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                          {user.bio}
-                        </p>
-                      )}
                     </div>
-                  </Link>
-                  <Button variant="outline" className="rounded-full ml-4">
-                    Follow
-                  </Button>
+                  </div>
+                  
+                  {currentUser && currentUser.username !== user.username && (
+                    <Button
+                      variant={user.is_following ? "outline" : "default"}
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => handleFollowToggle(user)}
+                    >
+                      {user.is_following ? 'Following' : 'Follow'}
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

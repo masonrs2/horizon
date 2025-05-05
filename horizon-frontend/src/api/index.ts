@@ -144,10 +144,71 @@ export const postApi = {
     });
   },
   
+  getUserReplies: async (username: string): Promise<{ reply: Post; parentPost: Post }[]> => {
+    const response = await api.get<{ reply: Post; parentPost: Post }[]>(`/users/${username}/replies`);
+    return response.data.map(({ reply, parentPost }) => ({
+      reply: {
+        ...reply,
+        reply_count: reply.reply_count || 0,
+        has_liked: reply.has_liked || false,
+        user: {
+          id: reply.user_id,
+          username: reply.user?.username || 'unknown',
+          display_name: reply.user?.display_name || reply.user?.username || 'Unknown User',
+          avatar_url: reply.user?.avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: reply.created_at,
+          updated_at: reply.updated_at,
+          email_verified: false
+        }
+      },
+      parentPost: {
+        ...parentPost,
+        reply_count: parentPost.reply_count || 0,
+        has_liked: parentPost.has_liked || false,
+        user: {
+          id: parentPost.user_id,
+          username: parentPost.user?.username || 'unknown',
+          display_name: parentPost.user?.display_name || parentPost.user?.username || 'Unknown User',
+          avatar_url: parentPost.user?.avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: parentPost.created_at,
+          updated_at: parentPost.updated_at,
+          email_verified: false
+        }
+      }
+    }));
+  },
+  
+  getUserLikes: async (username: string): Promise<Post[]> => {
+    const response = await api.get<Post[]>(`/users/${username}/likes`);
+    return response.data.map(post => {
+      const { username, display_name, avatar_url, ...postData } = post;
+      return {
+        ...postData,
+        reply_count: post.reply_count || 0,
+        has_liked: true, // Since this is a liked post
+        user: {
+          id: post.user_id,
+          username: username || 'unknown',
+          display_name: display_name || username || 'Unknown User',
+          avatar_url: avatar_url || '',
+          email: '', // We don't get this from the post response
+          is_private: false,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          email_verified: false
+        }
+      };
+    });
+  },
+  
   likePost: async (postId: string): Promise<void> => {
     console.log('Sending like request:', { postId });
     try {
-      const response = await api.post(`/posts/${postId}/like`);
+      const response = await api.post(`/posts/${postId}/likes`);
       console.log('Like response:', response.data);
     } catch (error: any) {
       if (error.response?.status === 409) {
@@ -162,7 +223,7 @@ export const postApi = {
   unlikePost: async (postId: string): Promise<void> => {
     console.log('Sending unlike request:', { postId });
     try {
-      const response = await api.delete(`/posts/${postId}/like`);
+      const response = await api.delete(`/posts/${postId}/likes`);
       console.log('Unlike response:', response.data);
     } catch (error) {
       console.error('Unlike request failed:', error);

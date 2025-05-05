@@ -1,5 +1,5 @@
 import { api } from './index';
-import { CreateUserRequest, LoginRequest, LoginResponse } from '../types';
+import { CreateUserRequest, LoginRequest, LoginResponse, User, FollowResponse } from '../types';
 
 interface User {
   id: string;
@@ -62,20 +62,24 @@ export const userApi = {
   },
 
   // Get user's followers
-  getFollowers: async (username: string): Promise<FollowUser[]> => {
-    const response = await api.get(`/users/${username}/followers`);
+  getFollowers: async (username: string, limit: number = 20, offset: number = 0): Promise<User[]> => {
+    const response = await api.get<User[]>(`/users/${username}/followers`, {
+      params: { limit, offset }
+    });
     return response.data;
   },
 
   // Get users that a user is following
-  getFollowing: async (username: string): Promise<FollowUser[]> => {
-    const response = await api.get(`/users/${username}/following`);
+  getFollowing: async (username: string, limit: number = 20, offset: number = 0): Promise<User[]> => {
+    const response = await api.get<User[]>(`/users/${username}/following`, {
+      params: { limit, offset }
+    });
     return response.data;
   },
 
   // Follow a user
-  followUser: async (username: string): Promise<{ is_accepted: boolean }> => {
-    const response = await api.post(`/users/${username}/follow`);
+  followUser: async (username: string): Promise<FollowResponse> => {
+    const response = await api.post<FollowResponse>(`/users/${username}/follow`);
     return response.data;
   },
 
@@ -85,8 +89,8 @@ export const userApi = {
   },
 
   // Get follow status
-  getFollowStatus: async (username: string): Promise<{ is_following: boolean; is_accepted: boolean | null }> => {
-    const response = await api.get(`/users/${username}/follow-status`);
+  getFollowStatus: async (username: string): Promise<FollowResponse> => {
+    const response = await api.get<FollowResponse>(`/users/${username}/follow-status`);
     return response.data;
   },
 }; 

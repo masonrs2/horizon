@@ -6,25 +6,8 @@ import { CreatePostForm } from '@/components/post/CreatePostForm';
 import { Button } from '@/components/ui/button';
 import { usePostStore } from '@/store/postStore';
 import { useAuthStore } from '@/store/authStore';
-import { Post as PostType } from '@/types';
+import { Post } from '@/types';
 import { MessageCircle } from 'lucide-react';
-
-interface PostCardPost {
-  id: string;
-  content: string;
-  created_at: string;
-  likes_count: number;
-  replies_count: number;
-  reposts_count: number;
-  liked_by_user: boolean;
-  reposted_by_user: boolean;
-  user: {
-    id: string;
-    username: string;
-    display_name: string;
-    avatar_url: string;
-  };
-}
 
 export function PostPage() {
   const { postId } = useParams<{ postId: string }>();
@@ -45,7 +28,8 @@ export function PostPage() {
 
   const handleReplySuccess = () => {
     if (postId) {
-      // Just fetch the replies, no need to fetch the entire post
+      // Fetch both post and replies to ensure counts are up to date
+      fetchPostById(postId);
       fetchReplies(postId);
     }
   };
@@ -77,55 +61,10 @@ export function PostPage() {
       return null;
     }
 
-    // Transform the API post data to match PostCard's expected format
-    const postCardPost: PostCardPost = {
-      id: post.id,
-      content: post.content,
-      created_at: post.created_at,
-      likes_count: post.like_count || 0,
-      replies_count: replies.length,
-      reposts_count: post.repost_count || 0,
-      liked_by_user: post.has_liked || false,
-      reposted_by_user: false, // TODO: Add reposted_by_user to API
-      user: post.user ? {
-        id: post.user.id,
-        username: post.user.username,
-        display_name: post.user.display_name || post.user.username,
-        avatar_url: post.user.avatar_url || ''
-      } : {
-        id: 'unknown',
-        username: 'unknown',
-        display_name: 'Unknown User',
-        avatar_url: ''
-      }
-    };
-
-    const transformReply = (reply: PostType): PostCardPost => ({
-      id: reply.id,
-      content: reply.content,
-      created_at: reply.created_at,
-      likes_count: reply.like_count || 0,
-      replies_count: 0,
-      reposts_count: reply.repost_count || 0,
-      liked_by_user: false,
-      reposted_by_user: false,
-      user: reply.user ? {
-        id: reply.user.id,
-        username: reply.user.username,
-        display_name: reply.user.display_name || reply.user.username,
-        avatar_url: reply.user.avatar_url || ''
-      } : {
-        id: 'unknown',
-        username: 'unknown',
-        display_name: 'Unknown User',
-        avatar_url: ''
-      }
-    });
-
     return (
       <div className="divide-y divide-border/40">
         {/* Main post */}
-        <PostCard post={postCardPost} hideActions={false} />
+        <PostCard post={post} hideActions={false} />
         
         {/* Reply form */}
         {isAuthenticated && (
@@ -148,7 +87,7 @@ export function PostPage() {
           </div>
         ) : replies.length > 0 ? (
           replies.map((reply) => (
-            <PostCard key={reply.id} post={transformReply(reply)} isReply={true} />
+            <PostCard key={reply.id} post={reply} isReply={true} />
           ))
         ) : (
           <div className="p-8 text-center text-muted-foreground">

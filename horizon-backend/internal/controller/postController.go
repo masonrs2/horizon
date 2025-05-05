@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"horizon-backend/internal/middleware"
 	"horizon-backend/internal/model"
 	"horizon-backend/internal/service"
@@ -14,12 +15,14 @@ import (
 )
 
 type PostController struct {
-	service *service.PostService
+	postService *service.PostService
+	userService service.AuthService
 }
 
-func NewPostController(service *service.PostService) *PostController {
+func NewPostController(postService *service.PostService, userService service.AuthService) *PostController {
 	return &PostController{
-		service: service,
+		postService: postService,
+		userService: userService,
 	}
 }
 
@@ -49,7 +52,7 @@ func (c *PostController) CreatePost(ctx echo.Context) error {
 		MediaUrls:     request.MediaUrls,
 	}
 
-	createdPost, err := c.service.CreatePost(ctx.Request().Context(), &post)
+	createdPost, err := c.postService.CreatePost(ctx.Request().Context(), &post)
 
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create post: "+err.Error())
@@ -76,7 +79,7 @@ func (c *PostController) UpdatePostContent(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request format")
 	}
 
-	updatedPost, err := c.service.UpdatePostContent(ctx.Request().Context(), postId, request.UserID, request.Content)
+	updatedPost, err := c.postService.UpdatePostContent(ctx.Request().Context(), postId, request.UserID, request.Content)
 
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -112,7 +115,7 @@ func (c *PostController) LikePost(ctx echo.Context) error {
 	}
 
 	// Like the post
-	err = c.service.LikePost(ctx.Request().Context(), postID, userID)
+	err = c.postService.LikePost(ctx.Request().Context(), postID, userID)
 	if err != nil {
 		if err.Error() == "user has already liked this post" {
 			return echo.NewHTTPError(http.StatusConflict, "you have already liked this post")
@@ -153,7 +156,7 @@ func (c *PostController) HasLiked(ctx echo.Context) error {
 	}
 
 	// Check if user has liked the post
-	hasLiked, err := c.service.HasLiked(ctx.Request().Context(), postID, userID)
+	hasLiked, err := c.postService.HasLiked(ctx.Request().Context(), postID, userID)
 	if err != nil {
 		if err.Error() == "failed to find post: no rows in result set" {
 			return echo.NewHTTPError(http.StatusNotFound, "post not found")
@@ -191,7 +194,7 @@ func (c *PostController) UnlikePost(ctx echo.Context) error {
 	}
 
 	// Unlike the post
-	err = c.service.UnlikePost(ctx.Request().Context(), postID, userID)
+	err = c.postService.UnlikePost(ctx.Request().Context(), postID, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to unlike post: "+err.Error())
 	}
@@ -228,7 +231,7 @@ func (c *PostController) GetPosts(ctx echo.Context) error {
 	reqCtx := context.WithValue(ctx.Request().Context(), "user_id", userID)
 
 	// Get posts from service with the user context
-	posts, err := c.service.GetPosts(reqCtx, limit, offset)
+	posts, err := c.postService.GetPosts(reqCtx, limit, offset)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get posts: "+err.Error())
 	}
@@ -271,7 +274,7 @@ func (c *PostController) GetUserPosts(ctx echo.Context) error {
 	reqCtx := context.WithValue(ctx.Request().Context(), "user_id", userID)
 
 	// Get posts from service
-	posts, err := c.service.GetUserPostsByUsername(reqCtx, username, limit, offset)
+	posts, err := c.postService.GetUserPostsByUsername(reqCtx, username, limit, offset)
 	if err != nil {
 		if err.Error() == "user not found" {
 			return echo.NewHTTPError(http.StatusNotFound, "user not found")
@@ -307,7 +310,7 @@ func (c *PostController) GetPostByID(ctx echo.Context) error {
 	reqCtx := context.WithValue(ctx.Request().Context(), "user_id", userID)
 
 	// Get post from service with the user context
-	post, err := c.service.GetPostById(reqCtx, postId)
+	post, err := c.postService.GetPostById(reqCtx, postId)
 	if err != nil {
 		if err.Error() == "failed to find post: no rows in result set" {
 			return echo.NewHTTPError(http.StatusNotFound, "post not found")
@@ -361,7 +364,7 @@ func (c *PostController) GetPostReplies(ctx echo.Context) error {
 	}
 
 	// Get replies from service
-	replies, err := c.service.GetPostReplies(ctx.Request().Context(), postID, limit, offset)
+	replies, err := c.postService.GetPostReplies(ctx.Request().Context(), postID, limit, offset)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get post replies: "+err.Error())
 	}
@@ -396,7 +399,7 @@ func (c *PostController) DeletePost(ctx echo.Context) error {
 	}
 
 	// Delete the post
-	err = c.service.DeletePost(ctx.Request().Context(), postID, userID)
+	err = c.postService.DeletePost(ctx.Request().Context(), postID, userID)
 	if err != nil {
 		if err.Error() == "failed to find post: no rows in result set" {
 			return echo.NewHTTPError(http.StatusNotFound, "post not found")
@@ -408,4 +411,150 @@ func (c *PostController) DeletePost(ctx echo.Context) error {
 	}
 
 	return ctx.NoContent(http.StatusOK)
+}
+
+// GetUserReplies retrieves replies by a specific user
+func (c *PostController) GetUserReplies(ctx echo.Context) error {
+	// Get username from path parameter
+	username := ctx.Param("username")
+	if username == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "username is required")
+	}
+
+	// Get pagination parameters
+	limitStr := ctx.QueryParam("limit")
+	offsetStr := ctx.QueryParam("offset")
+
+	var limit int32 = 10 // Default limit
+	var offset int32 = 0 // Default offset
+
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = int32(parsedLimit)
+			if limit > 50 {
+				limit = 50 // Cap at 50
+			}
+		}
+	}
+
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = int32(parsedOffset)
+		}
+	}
+
+	// Get user's replies with their parent posts
+	replies, err := c.postService.GetUserRepliesByUsername(ctx.Request().Context(), username, limit, offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user replies")
+	}
+
+	// Convert to response format
+	response := make([]map[string]interface{}, 0, len(replies))
+	for _, reply := range replies {
+		// Get the parent post
+		parentPost, err := c.postService.GetPostById(ctx.Request().Context(), reply.ReplyToPostID)
+		if err != nil {
+			if err != sql.ErrNoRows {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to get parent post")
+			}
+			continue // Skip if parent post not found
+		}
+
+		// Convert to response format
+		replyResponse := map[string]interface{}{
+			"id":               reply.ID,
+			"content":          reply.Content,
+			"created_at":       reply.CreatedAt,
+			"updated_at":       reply.UpdatedAt,
+			"deleted_at":       reply.DeletedAt,
+			"user_id":          reply.UserID,
+			"reply_to_post_id": reply.ReplyToPostID,
+			"is_private":       reply.IsPrivate,
+			"allow_replies":    reply.AllowReplies,
+			"media_urls":       reply.MediaUrls,
+			"like_count":       reply.LikeCount,
+			"repost_count":     reply.RepostCount,
+			"reply_count":      reply.ReplyCount,
+			"has_liked":        reply.HasLiked,
+			"user": map[string]interface{}{
+				"id":           reply.UserID,
+				"username":     reply.Username,
+				"display_name": reply.DisplayName.String,
+				"avatar_url":   reply.AvatarUrl.String,
+			},
+		}
+
+		parentResponse := map[string]interface{}{
+			"id":               parentPost.ID,
+			"content":          parentPost.Content,
+			"created_at":       parentPost.CreatedAt,
+			"updated_at":       parentPost.UpdatedAt,
+			"deleted_at":       parentPost.DeletedAt,
+			"user_id":          parentPost.UserID,
+			"reply_to_post_id": parentPost.ReplyToPostID,
+			"is_private":       parentPost.IsPrivate,
+			"allow_replies":    parentPost.AllowReplies,
+			"media_urls":       parentPost.MediaUrls,
+			"like_count":       parentPost.LikeCount,
+			"repost_count":     parentPost.RepostCount,
+			"reply_count":      parentPost.ReplyCount,
+			"has_liked":        parentPost.HasLiked,
+			"user": map[string]interface{}{
+				"id":           parentPost.UserID,
+				"username":     parentPost.Username,
+				"display_name": parentPost.DisplayName.String,
+				"avatar_url":   parentPost.AvatarUrl.String,
+			},
+		}
+
+		response = append(response, map[string]interface{}{
+			"reply":      replyResponse,
+			"parentPost": parentResponse,
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, response)
+}
+
+// GetUserLikedPosts retrieves posts liked by a specific user
+func (c *PostController) GetUserLikedPosts(ctx echo.Context) error {
+	// Get username from path parameter
+	username := ctx.Param("username")
+	if username == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "username is required")
+	}
+
+	// Get pagination parameters
+	limitStr := ctx.QueryParam("limit")
+	offsetStr := ctx.QueryParam("offset")
+
+	var limit int32 = 10 // Default limit
+	var offset int32 = 0 // Default offset
+
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = int32(parsedLimit)
+			if limit > 50 {
+				limit = 50 // Cap at 50
+			}
+		}
+	}
+
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = int32(parsedOffset)
+		}
+	}
+
+	// Get user's liked posts
+	posts, err := c.postService.GetUserLikedPostsByUsername(ctx.Request().Context(), username, limit, offset)
+	if err != nil {
+		if err.Error() == "failed to find user: no rows in result set" {
+			return echo.NewHTTPError(http.StatusNotFound, "user not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user's liked posts")
+	}
+
+	return ctx.JSON(http.StatusOK, posts)
 }

@@ -184,7 +184,7 @@ func (c *FollowController) GetFollowStatus(ctx echo.Context) error {
 	if username == currentUser.Username {
 		return ctx.JSON(http.StatusOK, &service.FollowStatus{
 			IsFollowing: false,
-			IsAccepted:  nil,
+			IsAccepted:  false,
 		})
 	}
 
