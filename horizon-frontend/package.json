@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "seed": "tsx scripts/seed-mock-data.ts",
     "type-check": "tsc -b",
-    "predeploy": "npm run build:prod",
+    "predeploy": "npm run build:prod && cp dist/index.html dist/404.html",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
