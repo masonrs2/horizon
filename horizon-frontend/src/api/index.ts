@@ -12,9 +12,10 @@ import { useAuthStore } from '../store/authStore';
 
 export { userApi } from './userApi';
 
-// Create an axios instance with base URL and default headers
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+
 export const api = axios.create({
-  baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api',
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -54,57 +55,34 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
-    // If the error is not 401 or the request has already been retried, reject
-    if (error.response?.status !== 401 || originalRequest._retry) {
-      return Promise.reject(error);
-    }
-
-    // Mark this request as retried
-    originalRequest._retry = true;
-
-    if (!isRefreshing) {
-      isRefreshing = true;
-
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
       try {
-        // Try to refresh the token
-        const refreshed = await useAuthStore.getState().refreshToken();
-        
-        if (!refreshed) {
-          // If refresh failed, reject all waiting requests
-          refreshSubscribers = [];
-          return Promise.reject(error);
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) {
+          throw new Error('No refresh token available');
         }
-
-        // Get the new token and ensure it's the latest one from localStorage
-        const newToken = localStorage.getItem('access_token');
-        if (!newToken) {
-          return Promise.reject(error);
-        }
-
-        // Small delay to ensure token is fully propagated
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Notify all waiting requests with the latest token
-        onRefreshed(newToken);
         
-        // Update the failed request's auth header with the latest token
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        const response = await axios.post(`${API_URL}/auth/refresh`, {
+          refresh_token: refreshToken
+        });
         
-        // Retry the failed request
-        return api(originalRequest);
-      } finally {
-        isRefreshing = false;
+        const { access_token } = response.data;
+        localStorage.setItem('access_token', access_token);
+        
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        return axios(originalRequest);
+      } catch (refreshError) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
       }
     }
-
-    // If we're already refreshing, add this request to the queue
-    return new Promise(resolve => {
-      addRefreshSubscriber(token => {
-        originalRequest.headers.Authorization = `Bearer ${token}`;
-        resolve(api(originalRequest));
-      });
-    });
+    
+    return Promise.reject(error);
   }
 );
 

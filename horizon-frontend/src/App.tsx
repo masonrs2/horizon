@@ -55,7 +55,7 @@ function App() {
   }, [theme]);
   
   return (
-    <Router>
+    <Router basename="/horizon">
       <Routes>
         {/* Protected routes */}
         <Route path="/" element={
