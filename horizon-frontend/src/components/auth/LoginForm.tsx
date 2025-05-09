@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Lock, AtSign } from 'lucide-react';
@@ -36,6 +36,7 @@ export function LoginForm() {
       toast.success('Successfully logged in!');
       navigate('/');
     } catch (error) {
+      console.error(error);
       toast.error('Failed to login. Please check your credentials.');
     } finally {
       setIsLoading(false);
@@ -81,6 +82,15 @@ export function LoginForm() {
       >
         {isLoading ? 'Logging in...' : 'Login'}
       </Button>
+
+      <div className="text-center mt-6">
+        <p className="text-sm text-muted-foreground">
+          Don't have an account?{' '}
+          <Link to="/signup" className="text-primary font-medium hover:underline">
+            Sign up
+          </Link>
+        </p>
+      </div>
     </form>
   );
 } 

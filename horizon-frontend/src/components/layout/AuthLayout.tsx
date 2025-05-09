@@ -66,9 +66,18 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
                   <button className="w-10 h-10 rounded-full flex items-center justify-center bg-background/50 hover:bg-background transition-colors">
                     <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg" className="w-5 h-5" alt="Google" />
                   </button>
-                  <button className="w-10 h-10 rounded-full flex items-center justify-center bg-background/50 hover:bg-background transition-colors">
-                    <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg" className="w-5 h-5" alt="GitHub" />
-                  </button>
+                  <a
+                    href="https://github.com/masonrs2/horizon"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-full flex items-center justify-center bg-background/50 hover:bg-background transition-colors"
+                  >
+                    <img
+                      src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg"
+                      className="w-5 h-5"
+                      alt="GitHub"
+                    />
+                  </a>
                   <button className="w-10 h-10 rounded-full flex items-center justify-center bg-background/50 hover:bg-background transition-colors">
                     <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/facebook/facebook-original.svg" className="w-5 h-5" alt="Facebook" />
                   </button>
