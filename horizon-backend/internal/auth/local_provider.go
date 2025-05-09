@@ -41,10 +41,10 @@ func (p *LocalAuthProvider) Login(ctx context.Context, usernameOrEmail, password
 	if err == pgx.ErrNoRows {
 		// If not found by email, try username
 		dbUser, err = p.queries.GetUserByUsername(ctx, usernameOrEmail)
-		if err != nil {
-			if err == pgx.ErrNoRows {
-				return "", "", ErrUserNotFound
-			}
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", "", ErrUserNotFound
+		}
 			return "", "", fmt.Errorf("database error: %w", err)
 		}
 	} else if err != nil {

@@ -28,10 +28,10 @@ export function LoginForm() {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
-
+  
   const onSubmit = async (data: LoginFormData) => {
     try {
-      setIsLoading(true);
+    setIsLoading(true);
       await login(data.username, data.password);
       toast.success('Successfully logged in!');
       navigate('/');
@@ -42,55 +42,55 @@ export function LoginForm() {
       setIsLoading(false);
     }
   };
-
+  
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
-        <div className="relative">
+                <div className="relative">
           <AtSign className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <Input
+                  <Input 
             {...register('username')}
             type="text"
             placeholder="Username or Email"
             className="pl-10"
-          />
-        </div>
+                  />
+                </div>
         {errors.username && (
           <p className="text-sm text-red-500">{errors.username.message}</p>
         )}
       </div>
 
       <div className="space-y-2">
-        <div className="relative">
+                <div className="relative">
           <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <Input
+                  <Input 
             {...register('password')}
-            type="password"
+                    type="password" 
             placeholder="Password"
             className="pl-10"
-          />
-        </div>
+                  />
+                </div>
         {errors.password && (
           <p className="text-sm text-red-500">{errors.password.message}</p>
         )}
-      </div>
-
-      <Button
-        type="submit"
+        </div>
+        
+        <Button 
+          type="submit" 
         className="w-full"
-        disabled={isLoading}
-      >
+          disabled={isLoading}
+        >
         {isLoading ? 'Logging in...' : 'Login'}
-      </Button>
-
-      <div className="text-center mt-6">
-        <p className="text-sm text-muted-foreground">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-primary font-medium hover:underline">
-            Sign up
-          </Link>
-        </p>
-      </div>
-    </form>
+        </Button>
+        
+        <div className="text-center mt-6">
+          <p className="text-sm text-muted-foreground">
+            Don't have an account?{' '}
+            <Link to="/signup" className="text-primary font-medium hover:underline">
+              Sign up
+            </Link>
+          </p>
+        </div>
+      </form>
   );
 } 

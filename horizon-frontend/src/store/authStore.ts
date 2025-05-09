@@ -29,7 +29,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
-      
+
       set({ isAuthenticated: true, isLoading: false, user });
     } catch (error) {
       if (error instanceof AxiosError) {
@@ -58,7 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       if (error instanceof AxiosError) {
         console.error('Auth check failed:', error.response?.data || error.message);
-      }
+          }
       set({ isAuthenticated: false, isLoading: false });
     }
   },

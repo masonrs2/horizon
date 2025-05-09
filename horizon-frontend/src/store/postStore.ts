@@ -136,9 +136,9 @@ export const usePostStore = create<PostState>((set, get) => ({
   
   likePost: async (postId) => {
     try {
-      await postApi.likePost(postId);
+    await postApi.likePost(postId);
       // Update post in state
-      set((state) => ({
+    set((state) => ({
         posts: state.posts.map((post) =>
           post.id === postId ? { ...post, has_liked: true } : post
         ),
@@ -151,9 +151,9 @@ export const usePostStore = create<PostState>((set, get) => ({
   
   unlikePost: async (postId) => {
     try {
-      await postApi.unlikePost(postId);
+    await postApi.unlikePost(postId);
       // Update post in state
-      set((state) => ({
+    set((state) => ({
         posts: state.posts.map((post) =>
           post.id === postId ? { ...post, has_liked: false } : post
         ),
