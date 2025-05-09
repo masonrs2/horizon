@@ -1,54 +1,134 @@
-# React + TypeScript + Vite
+# Horizon - Social Media Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Overview
+Horizon is a modern social media platform built with React and TypeScript, featuring a clean and intuitive user interface. It allows users to share posts, follow other users, engage with content through likes and comments, and manage their personal profiles.
 
-Currently, two official plugins are available:
+## Features
+- User authentication (login/register)
+- Create and share posts with text and images
+- Follow other users and manage followers
+- Like and bookmark posts
+- Real-time notifications
+- User profiles with customizable avatars and bio
+- Dark/light theme support
+- Responsive design for mobile and desktop
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
+- React 18
+- TypeScript
+- Tailwind CSS
+- Shadcn/UI Components
+- Zustand (State Management)
+- React Router v6
+- React Hook Form + Zod (Form Validation)
+- Axios (API Client)
 
-## Expanding the ESLint configuration
+## Prerequisites
+- Node.js (v18 or higher)
+- npm or yarn
+- Backend server running (see backend documentation)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting Started
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+1. Clone the repository:
+```bash
+git clone https://github.com/masonrs2/horizon.git
+cd horizon/horizon-frontend
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
 ```
+
+3. Create a `.env` file in the root directory:
+```env
+VITE_API_URL=http://localhost:8080/api
+```
+
+4. Start the development server:
+```bash
+npm run dev
+# or
+yarn dev
+```
+
+The application will be available at `http://localhost:5173`
+
+## Building for Production
+
+To create a production build:
+```bash
+npm run build
+# or
+yarn build
+```
+
+To preview the production build locally:
+```bash
+npm run preview
+# or
+yarn preview
+```
+
+## Project Structure
+```
+horizon-frontend/
+├── src/
+│   ├── api/          # API client and endpoints
+│   ├── components/   # Reusable React components
+│   ├── hooks/        # Custom React hooks
+│   ├── pages/        # Page components
+│   ├── store/        # Zustand store definitions
+│   ├── styles/       # Global styles and Tailwind config
+│   ├── types/        # TypeScript type definitions
+│   └── utils/        # Utility functions
+├── public/           # Static assets
+└── index.html        # Entry HTML file
+```
+
+## Development Guidelines
+
+### Code Style
+- Follow the ESLint configuration
+- Use TypeScript for type safety
+- Follow component composition patterns
+- Write meaningful commit messages
+
+### Component Structure
+- Use functional components with hooks
+- Implement proper error handling
+- Follow the container/presenter pattern where applicable
+- Keep components focused and maintainable
+
+## Testing
+Run the test suite:
+```bash
+npm run test
+# or
+yarn test
+```
+
+## API Documentation
+For detailed API documentation, please refer to the [Backend README](../horizon-backend/README.md).
+
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+For support, please open an issue in the GitHub repository or contact the maintainers.
+
+## Acknowledgments
+- [Shadcn/UI](https://ui.shadcn.com/) for the component library
+- [Tailwind CSS](https://tailwindcss.com/) for the utility-first CSS framework
+- [Zustand](https://github.com/pmndrs/zustand) for state management
+- All contributors who have helped shape this project
