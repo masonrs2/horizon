@@ -15,7 +15,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.13.3
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.31.0
 )
 
 require (

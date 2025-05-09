@@ -1,8 +1,11 @@
 # Build stage
-FROM golang:1.23-rc-alpine AS builder
+FROM golang:1.23-rc AS builder
 
 # Set working directory
 WORKDIR /app
+
+# Set GOTOOLCHAIN to auto
+ENV GOTOOLCHAIN=auto
 
 # Copy go mod and sum files
 COPY go.mod go.sum ./
