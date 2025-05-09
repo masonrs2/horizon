@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Post, CreatePostRequest } from '../types';
 import { postApi } from '../api';
+import { useAuthStore } from '../store/authStore';
 
 interface PostState {
   posts: Post[];
@@ -15,9 +16,9 @@ interface PostState {
   fetchPostById: (postId: string) => Promise<void>;
   fetchReplies: (postId: string) => Promise<void>;
   createPost: (postData: CreatePostRequest) => Promise<Post | null>;
-  likePost: (postId: string, userId: string) => Promise<void>;
-  unlikePost: (postId: string, userId: string) => Promise<void>;
-  repostPost: (postId: string, userId: string) => Promise<void>;
+  likePost: (postId: string) => Promise<void>;
+  unlikePost: (postId: string) => Promise<void>;
+  repostPost: (postId: string) => Promise<void>;
 }
 
 export const usePostStore = create<PostState>((set, get) => ({
@@ -133,48 +134,45 @@ export const usePostStore = create<PostState>((set, get) => ({
     }
   },
   
-  likePost: async (postId, userId) => {
-    await postApi.likePost(postId);
-    set((state) => ({
-      posts: state.posts.map((p) =>
-        p.id === postId ? { ...p, has_liked: true, like_count: (p.like_count || 0) + 1 } : p
-      ),
-      currentPost: state.currentPost?.id === postId 
-        ? { ...state.currentPost, has_liked: true, like_count: (state.currentPost.like_count || 0) + 1 }
-        : state.currentPost,
-      userPosts: state.userPosts.map((p) =>
-        p.id === postId ? { ...p, has_liked: true, like_count: (p.like_count || 0) + 1 } : p
-      )
-    }));
+  likePost: async (postId) => {
+    try {
+      await postApi.likePost(postId);
+      // Update post in state
+      set((state) => ({
+        posts: state.posts.map((post) =>
+          post.id === postId ? { ...post, has_liked: true } : post
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to like post:', error);
+      throw error;
+    }
   },
   
-  unlikePost: async (postId, userId) => {
-    await postApi.unlikePost(postId);
-    set((state) => ({
-      posts: state.posts.map((p) =>
-        p.id === postId ? { ...p, has_liked: false, like_count: Math.max(0, (p.like_count || 0) - 1) } : p
-      ),
-      currentPost: state.currentPost?.id === postId
-        ? { ...state.currentPost, has_liked: false, like_count: Math.max(0, (state.currentPost.like_count || 0) - 1) }
-        : state.currentPost,
-      userPosts: state.userPosts.map((p) =>
-        p.id === postId ? { ...p, has_liked: false, like_count: Math.max(0, (p.like_count || 0) - 1) } : p
-      )
-    }));
+  unlikePost: async (postId) => {
+    try {
+      await postApi.unlikePost(postId);
+      // Update post in state
+      set((state) => ({
+        posts: state.posts.map((post) =>
+          post.id === postId ? { ...post, has_liked: false } : post
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to unlike post:', error);
+      throw error;
+    }
   },
   
-  repostPost: async (postId, userId) => {
-    await postApi.repostPost(postId);
-    set((state) => ({
-      posts: state.posts.map((p) =>
-        p.id === postId ? { ...p, repost_count: (p.repost_count || 0) + 1 } : p
-      ),
-      currentPost: state.currentPost?.id === postId
-        ? { ...state.currentPost, repost_count: (state.currentPost.repost_count || 0) + 1 }
-        : state.currentPost,
-      userPosts: state.userPosts.map((p) =>
-        p.id === postId ? { ...p, repost_count: (p.repost_count || 0) + 1 } : p
-      )
-    }));
+  repostPost: async (postId) => {
+    try {
+      const userId = useAuthStore.getState().user?.id;
+      if (!userId) throw new Error('User not authenticated');
+      await postApi.repostPost(postId, userId);
+      // Update post in state if needed
+    } catch (error) {
+      console.error('Failed to repost:', error);
+      throw error;
+    }
   },
 })); 

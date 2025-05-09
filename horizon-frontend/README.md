@@ -27,7 +27,7 @@ Horizon is a modern social media platform built with React and TypeScript, featu
 - Node.js (v18 or higher)
 - npm or yarn
 - Backend server running (see backend documentation)
-
+ne
 ## Getting Started
 
 1. Clone the repository:
@@ -132,3 +132,35 @@ For support, please open an issue in the GitHub repository or contact the mainta
 - [Tailwind CSS](https://tailwindcss.com/) for the utility-first CSS framework
 - [Zustand](https://github.com/pmndrs/zustand) for state management
 - All contributors who have helped shape this project
+
+## Deployment
+
+### GitHub Pages Deployment
+The frontend is configured for deployment to GitHub Pages. The current setup uses a temporary mock API for demonstration purposes until the backend is deployed.
+
+To deploy to GitHub Pages:
+
+```bash
+# Make sure you have the latest changes
+git pull origin main
+
+# Install dependencies if needed
+npm install
+
+# Deploy to GitHub Pages
+npm run deploy
+```
+
+The deployment process will:
+1. Build the project in production mode
+2. Push the built files to the gh-pages branch
+3. Make the site available at https://msn0.github.io/horizon
+
+### Development vs Production
+- Development: Uses local API (http://localhost:8080/api)
+- Production: Currently uses a temporary mock API (will be updated when backend is deployed)
+
+### Updating API Configuration
+When the backend is deployed:
+1. Update the production API URL in `src/config/api.ts`
+2. Redeploy using `npm run deploy`

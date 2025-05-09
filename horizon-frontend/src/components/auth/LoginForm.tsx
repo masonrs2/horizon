@@ -1,113 +1,86 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Mail, Lock, AtSign } from 'lucide-react';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Lock, AtSign } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 
-// Form validation schema
-const formSchema = z.object({
-  usernameOrEmail: z.string().min(1, 'Username or email is required'),
-  password: z.string().min(1, 'Password is required'),
+const loginSchema = z.object({
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      usernameOrEmail: '',
-      password: '',
-    },
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: FormData) => {
-    setIsLoading(true);
+  const onSubmit = async (data: LoginFormData) => {
     try {
-      await login(data);
-      toast.success('Successfully logged in');
-      navigate('/feed');
-    } catch (error: any) {
-      const message = error.response?.data?.message || 'Failed to login';
-      const errors = error.response?.data?.errors || ['An unexpected error occurred'];
-      toast.error(message);
-      errors.forEach((err: string) => {
-        toast.error(err);
-      });
+      setIsLoading(true);
+      await login(data.username, data.password);
+      toast.success('Successfully logged in!');
+      navigate('/');
+    } catch (error) {
+      toast.error('Failed to login. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full max-w-sm">
-        <FormField
-          control={form.control}
-          name="usernameOrEmail"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Username or Email</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <span className="absolute left-2 top-2.5 text-muted-foreground">
-                    <AtSign className="h-4 w-4" />
-                  </span>
-                  <Input placeholder="Enter your username or email" className="pl-8" {...field} />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <span className="absolute left-2 top-2.5 text-muted-foreground">
-                    <Lock className="h-4 w-4" />
-                  </span>
-                  <Input type="password" placeholder="Enter your password" className="pl-8" {...field} />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Logging in...' : 'Login'}
-        </Button>
-
-        <div className="text-center text-sm">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-primary hover:underline">
-            Register
-          </Link>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div className="space-y-2">
+        <div className="relative">
+          <AtSign className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+          <Input
+            {...register('username')}
+            type="text"
+            placeholder="Username or Email"
+            className="pl-10"
+          />
         </div>
-      </form>
-    </Form>
+        {errors.username && (
+          <p className="text-sm text-red-500">{errors.username.message}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <div className="relative">
+          <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+          <Input
+            {...register('password')}
+            type="password"
+            placeholder="Password"
+            className="pl-10"
+          />
+        </div>
+        {errors.password && (
+          <p className="text-sm text-red-500">{errors.password.message}</p>
+        )}
+      </div>
+
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isLoading}
+      >
+        {isLoading ? 'Logging in...' : 'Login'}
+      </Button>
+    </form>
   );
 } 

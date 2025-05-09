@@ -9,13 +9,13 @@ import {
   LoginResponse
 } from '../types';
 import { useAuthStore } from '../store/authStore';
+import { API_CONFIG, API_TIMEOUT } from '../config/api';
 
 export { userApi } from './userApi';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
-
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_CONFIG.baseURL,
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -65,7 +65,7 @@ api.interceptors.response.use(
           throw new Error('No refresh token available');
         }
         
-        const response = await axios.post(`${API_URL}/auth/refresh`, {
+        const response = await axios.post(`${API_CONFIG.baseURL}/auth/refresh`, {
           refresh_token: refreshToken
         });
         

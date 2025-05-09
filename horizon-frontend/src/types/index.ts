@@ -1,18 +1,19 @@
 export interface User {
   id: string;
   username: string;
+  email: string;
   display_name: string;
   avatar_url: string;
-  email: string;
   bio?: string;
   location?: string;
   website?: string;
-  is_private: boolean;
-  followers_count: number;
-  following_count: number;
   created_at: string;
   updated_at: string;
   email_verified: boolean;
+  is_private: boolean;
+  followers_count: number;
+  following_count: number;
+  is_following?: boolean;
 }
 
 export interface Post {
